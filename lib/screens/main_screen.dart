@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
+import 'dashboard_screen.dart';
+import 'transactions_screen.dart';
+import 'add_transaction_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -13,13 +16,33 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const _PlaceholderPage(title: 'Ana Sayfa', icon: Icons.home_rounded),
-    const _PlaceholderPage(title: 'Yatırımlar', icon: Icons.show_chart_rounded),
-    const SizedBox(), // Ortadaki + butonu için boş sayfa
-    const _PlaceholderPage(title: 'İşlemler', icon: Icons.receipt_long_rounded),
-    const _PlaceholderPage(title: 'Profil', icon: Icons.person_rounded),
-  ];
+  // Dashboard ve Transactions için GlobalKey (yenileme için)
+  final _dashboardKey = GlobalKey<State>();
+  final _transactionsKey = GlobalKey<State>();
+
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      DashboardScreen(key: _dashboardKey),
+      const _PlaceholderPage(title: 'Yatırımlar', icon: Icons.show_chart_rounded),
+      const SizedBox(), // Ortadaki + butonu için boş sayfa
+      TransactionsScreen(key: _transactionsKey),
+      _ProfilePage(onLogout: _logout),
+    ];
+  }
+
+  Future<void> _logout() async {
+    await ApiService.removeToken();
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,10 +108,8 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Tutma çubuğu
             Container(
-              width: 40,
-              height: 4,
+              width: 40, height: 4,
               decoration: BoxDecoration(
                 color: AppColors.textMuted,
                 borderRadius: BorderRadius.circular(2),
@@ -97,11 +118,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 24),
             const Text(
               'İşlem Ekle',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 20),
             _buildAddOption(
@@ -109,6 +126,20 @@ class _MainScreenState extends State<MainScreen> {
               'Elle Ekle',
               'Gelir veya gider ekle',
               AppColors.purple,
+              onTap: () async {
+                Navigator.pop(context); // Bottom sheet kapat
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                );
+                // Yeni işlem eklendiyse sayfaları yenile
+                if (result == true) {
+                  setState(() {
+                    _pages[0] = DashboardScreen(key: UniqueKey());
+                    _pages[3] = TransactionsScreen(key: UniqueKey());
+                  });
+                }
+              },
             ),
             const SizedBox(height: 12),
             _buildAddOption(
@@ -116,6 +147,7 @@ class _MainScreenState extends State<MainScreen> {
               'PDF ile Ekle',
               'Banka ekstresini yükle (AI)',
               AppColors.cyan,
+              onTap: () => Navigator.pop(context),
             ),
             const SizedBox(height: 12),
             _buildAddOption(
@@ -123,6 +155,7 @@ class _MainScreenState extends State<MainScreen> {
               'Fotoğraf Çek',
               'Fiş veya fatura tara',
               AppColors.orange,
+              onTap: () => Navigator.pop(context),
             ),
             const SizedBox(height: 16),
           ],
@@ -131,7 +164,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildAddOption(IconData icon, String title, String subtitle, Color color) {
+  Widget _buildAddOption(IconData icon, String title, String subtitle, Color color, {VoidCallback? onTap}) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(10),
@@ -141,23 +174,17 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: Icon(icon, color: color),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-      ),
+      title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       tileColor: AppColors.cardBgLight,
-      onTap: () => Navigator.pop(context),
+      onTap: onTap,
     );
   }
 }
 
-// Geçici placeholder sayfa — ileride gerçek ekranlarla değişecek
+// Yatırımlar placeholder (Faz 4'te değişecek)
 class _PlaceholderPage extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -167,38 +194,64 @@ class _PlaceholderPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (title == 'Profil')
-            IconButton(
-              icon: const Icon(Icons.logout, color: AppColors.red),
-              onPressed: () async {
-                await ApiService.removeToken();
-                if (context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                }
-              },
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(title)),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 64, color: AppColors.textMuted),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 24),
-            ),
+            Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 24)),
             const SizedBox(height: 8),
-            const Text(
-              'Yakında...',
-              style: TextStyle(color: AppColors.textMuted),
+            const Text('Yakında...', style: TextStyle(color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Profil sayfası (Faz 3'te tam ekranla değişecek)
+class _ProfilePage extends StatelessWidget {
+  final VoidCallback onLogout;
+
+  const _ProfilePage({required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: AppColors.red),
+            onPressed: onLogout,
+          ),
+        ],
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Avatar
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: AppColors.gradientPurpleCyan,
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Text('SF', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('SmartFinance Kullanıcısı', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 32),
+            TextButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout, color: AppColors.red),
+              label: const Text('Çıkış Yap', style: TextStyle(color: AppColors.red)),
             ),
           ],
         ),

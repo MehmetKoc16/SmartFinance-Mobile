@@ -81,7 +81,7 @@ class ApiService{
       }
     }
 
-    static Future<Map<String,dynamic>> authenticatedGet(String endpoint) async{
+    static Future<dynamic> authenticatedGet(String endpoint) async{
         try{
             final token = await getToken();
 
@@ -99,7 +99,7 @@ class ApiService{
     }
 
 
-    static Future<Map<String,dynamic>> authenticatedPost(String endpoint,Map<String,dynamic> body,) async{
+    static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,) async{
         try{
             final token = await getToken();
 

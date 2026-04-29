@@ -45,5 +45,4 @@ app.*.map.json
 /android/app/release
 
 # Proje rehber dosyaları
-PROJE_DETAYLARI.md
-FAZ1_AUTH_REHBERI.md
+PROJE_REHBERI.md
