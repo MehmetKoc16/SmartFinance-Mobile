@@ -13,6 +13,7 @@ class TransactionsScreen extends StatefulWidget {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   List<dynamic> _transactions = [];
+  Map<int, String> _categoryMap = {};
   bool _isLoading = true;
   int _currentPage = 1;
   int _totalPages = 1;
@@ -22,7 +23,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _loadTransactions();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await ApiService.authenticatedGet('/category');
+      if (categories is List) {
+        setState(() {
+          _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadTransactions() async {
@@ -37,7 +50,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
       final response = await ApiService.authenticatedGet(endpoint);
 
-      if (response.containsKey('items')) {
+      if (response is Map && response.containsKey('items')) {
         setState(() {
           _transactions = response['items'] ?? [];
           _totalPages = response['totalPages'] ?? 1;
@@ -49,6 +62,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
     }
+  }
+
+  String _getCategoryName(dynamic transaction) {
+    final catId = transaction['categoryId'];
+    if (catId != null && _categoryMap.containsKey(catId)) {
+      return _categoryMap[catId]!;
+    }
+    return transaction['categoryName'] ?? 'Kategori';
   }
 
   void _onFilterChanged(int filter) {
@@ -107,7 +128,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               description: t['description'] ?? '',
                               amount: (t['amount'] ?? 0).toDouble(),
                               type: t['type'] ?? 2,
-                              categoryName: t['categoryName'] ?? t['category']?['name'] ?? 'Kategori',
+                              categoryName: _getCategoryName(t),
                               date: _formatDate(t['transactionDate']),
                             );
                           },

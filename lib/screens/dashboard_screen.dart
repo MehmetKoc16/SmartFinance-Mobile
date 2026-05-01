@@ -18,36 +18,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _balance = 0;
   int _transactionCount = 0;
   List<dynamic> _recentTransactions = [];
+  Map<int, String> _categoryMap = {};
   bool _isLoading = true;
+
+  // Ay seçici
+  late int _selectedYear;
+  late int _selectedMonth;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedYear = now.year;
+    _selectedMonth = now.month;
     _loadDashboardData();
+  }
+
+  void _changeMonth(int direction) {
+    setState(() {
+      _selectedMonth += direction;
+      if (_selectedMonth > 12) {
+        _selectedMonth = 1;
+        _selectedYear++;
+      } else if (_selectedMonth < 1) {
+        _selectedMonth = 12;
+        _selectedYear--;
+      }
+    });
+    _loadDashboardData();
+  }
+
+  bool get _isCurrentMonth {
+    final now = DateTime.now();
+    return _selectedYear == now.year && _selectedMonth == now.month;
   }
 
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
 
     try {
-      final now = DateTime.now();
+      // Kategorileri çek (isim eşleştirme için)
+      final categories = await ApiService.authenticatedGet('/category');
+      if (categories is List) {
+        _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
+      }
 
-      // Aylık özet
+      // Seçilen ayın özeti
       final summary = await ApiService.authenticatedGet(
-        '/transaction/summary/${now.year}/${now.month}',
+        '/transaction/summary/$_selectedYear/$_selectedMonth',
       );
 
-      // Son işlemler
+      double income = (summary['totalIncome'] ?? 0).toDouble();
+      double expense = (summary['totalExpense'] ?? 0).toDouble();
+      int count = summary['transactionCount'] ?? 0;
+
+      // Son işlemler (her zaman en son eklenenler)
       final transactions = await ApiService.authenticatedGet(
         '/transaction/filter?page=1&pageSize=5',
       );
 
       if (mounted) {
         setState(() {
-          _totalIncome = (summary['totalIncome'] ?? 0).toDouble();
-          _totalExpense = (summary['totalExpense'] ?? 0).toDouble();
-          _balance = (summary['balance'] ?? 0).toDouble();
-          _transactionCount = summary['transactionCount'] ?? 0;
+          _totalIncome = income;
+          _totalExpense = expense;
+          _balance = income - expense;
+          _transactionCount = count;
           _recentTransactions = transactions['items'] ?? [];
           _isLoading = false;
         });
@@ -55,6 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _getCategoryName(dynamic transaction) {
+    final catId = transaction['categoryId'];
+    if (catId != null && _categoryMap.containsKey(catId)) {
+      return _categoryMap[catId]!;
+    }
+    return transaction['categoryName'] ?? transaction['category']?['name'] ?? 'Kategori';
   }
 
   String _formatDate(String? dateStr) {
@@ -125,7 +168,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 20),
+
+                      // Ay seçici
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              onPressed: () => _changeMonth(-1),
+                              icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                            ),
+                            Text(
+                              DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _isCurrentMonth ? null : () => _changeMonth(1),
+                              icon: Icon(
+                                Icons.chevron_right,
+                                color: _isCurrentMonth ? AppColors.textMuted : AppColors.textSecondary,
+                              ),
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
 
                       // Donut chart
                       DonutChart(
@@ -206,7 +288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               description: t['description'] ?? '',
                               amount: (t['amount'] ?? 0).toDouble(),
                               type: t['type'] ?? 2,
-                              categoryName: t['categoryName'] ?? t['category']?['name'] ?? 'Kategori',
+                              categoryName: _getCategoryName(t),
                               date: _formatDate(t['transactionDate']),
                             ))),
                     ],
