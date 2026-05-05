@@ -1,121 +1,132 @@
-# 📈 Faz 4: Yatırımlar
+# 📈 Faz 4: Yatırım Yönetim Modülü
 
-**Durum:** ✅ Tamamlandı — 5 Mayıs 2026
+> **Tamamlanma Tarihi:** 5 Mayıs 2026
+> **Kapsam:** Backend + Frontend + API Entegrasyonu
 
 ---
 
 ## 🎯 Amacı
 
-Kullanıcının yatırım portföyünü (hisse, altın, döviz, kripto) görsel olarak takip edebilmesini sağlamak. Backend'de henüz yatırım endpoint'i olmadığı için **mock (örnek) veri** ile çalışılmaktadır. İleride gerçek piyasa API'si entegre edilecektir.
+Kullanıcıların hisse senedi, altın, döviz ve kripto yatırımlarını takip edebilmesi için uçtan uca (backend → database → API → Flutter UI) bir yatırım yönetim modülü oluşturmak.
 
 ---
 
-## 📂 Yazılan Dosyalar
+## 🏗️ Backend Mimarisi (C# .NET 9)
 
-### 1. `lib/screens/investments_screen.dart` 🆕
+### Katmanlı Yapı
 
-**Ne yapar:** Yatırım portföyünü görselleştirir.
-
-**Bölümler:**
-
-| # | Bölüm | Açıklama |
-|---|-------|----------|
-| 1 | **Portföy kartı** | Gradient kart: toplam değer + günlük değişim (₺ ve %) |
-| 2 | **Periyod seçici** | 1H / 1A / 3A / 1Y chip'leri |
-| 3 | **Çizgi grafik** | fl_chart LineChart — 7 günlük performans, dokunulunca değer gösterir |
-| 4 | **Yatırım listesi** | Her yatırım için: ikon + isim + mini sparkline + fiyat + değişim % |
-| 5 | **Uyarı notu** | "Veriler örnek amaçlıdır" bilgilendirmesi |
-
-**Mock veriler:**
-```dart
-// 6 adet yatırım
-'THYAO'    → Türk Hava Yolları  → ₺312.40  (+2.15%)
-'Altın'    → Gram Altın         → ₺3285.00 (-0.42%)
-'SASA'     → SASA Polyester     → ₺58.70   (+4.32%)
-'USD/TRY'  → Amerikan Doları    → ₺38.42   (+0.18%)
-'EUR/TRY'  → Euro               → ₺41.85   (-0.25%)
-'BTC'      → Bitcoin            → ₺96520   (+1.87%)
+```
+SmartFinance.Domain/Entities/Investment.cs           → Entity
+SmartFinance.Application/DTOs/Investment/             → DTO'lar (3 dosya)
+SmartFinance.Application/Interfaces/IInvestmentService.cs → Servis kontratı
+SmartFinance.Infrastructure/Configurations/           → EF Core config
+SmartFinance.Infrastructure/Services/InvestmentService.cs → İş mantığı
+SmartFinance.API/Controllers/InvestmentController.cs  → API endpoint'leri
 ```
 
-**Kullanılan fl_chart bileşenleri:**
+### Investment Entity Property'leri
 
-```dart
-// Ana çizgi grafik (LineChart)
-LineChart(
-  LineChartData(
-    lineBarsData: [
-      LineChartBarData(
-        spots: data.map((e) => FlSpot(...)).toList(),
-        isCurved: true,           // Yumuşak eğri
-        belowBarData: BarAreaData( // Alt gölgeleme
-          show: true,
-          color: purple.withOpacity(0.1),
-        ),
-      ),
-    ],
-  ),
-);
+| Property | Tip | Açıklama |
+|----------|-----|----------|
+| Id | int | PK (BaseEntity'den) |
+| Name | string(50) | Sembol: THYAO, BTC |
+| FullName | string(200) | Tam ad: Türk Hava Yolları |
+| PurchasePrice | decimal(18,4) | Alış fiyatı |
+| CurrentPrice | decimal(18,4) | Güncel fiyat |
+| Quantity | double | Adet veya gram |
+| InvestmentType | string(50) | stock, gold, currency, crypto |
+| UserId | int | FK → User |
+| CreatedDate | DateTime | BaseEntity'den |
+| UpdatedDate | DateTime? | BaseEntity'den |
+| IsDeleted | bool | Soft delete (BaseEntity'den) |
 
-// Mini sparkline (her yatırım kartında)
-// Aynı LineChart ama küçük, dokunma devre dışı
-SizedBox(
-  width: 60, height: 30,
-  child: LineChart(
-    LineChartData(
-      lineTouchData: LineTouchData(enabled: false),
-      ...
-    ),
-  ),
-);
-```
+### API Endpoint'leri
 
-**Önemli kavramlar:**
-```dart
-// FlSpot: Grafik üzerindeki nokta (x, y)
-FlSpot(0, 124200)  // İlk gün, ₺124,200
+| HTTP | URL | Açıklama |
+|------|-----|----------|
+| GET | /api/investment | Kullanıcının tüm yatırımları |
+| GET | /api/investment/{id} | Tek yatırım detayı |
+| GET | /api/investment/summary | Portföy özeti |
+| POST | /api/investment | Yatırım ekle |
+| PUT | /api/investment/{id} | Yatırım güncelle |
+| DELETE | /api/investment/{id} | Yatırım sil (soft delete) |
 
-// asMap().entries: List'i index ile birlikte döndürür
-sparkline.asMap().entries.map((e) =>
-  FlSpot(e.key.toDouble(), e.value),
-).toList();
-// Sonuç: [FlSpot(0, 295), FlSpot(1, 300), FlSpot(2, 305), ...]
+### InvestmentDto Hesaplanmış Property'ler
 
-// Gradient kart: Container'a gradient uygulama
-Container(
-  decoration: BoxDecoration(
-    gradient: AppColors.gradientPurpleCyan,
-    borderRadius: BorderRadius.circular(18),
-  ),
-);
-```
+DTO içinde backend tarafında hesaplanan property'ler:
+- `TotalPurchaseValue` = PurchasePrice × Quantity
+- `TotalCurrentValue` = CurrentPrice × Quantity
+- `ProfitLoss` = TotalCurrentValue - TotalPurchaseValue
+- `ProfitLossPercentage` = (ProfitLoss / TotalPurchaseValue) × 100
+
+### PortfolioSummaryDto
+
+Kullanıcının tüm portföy özetini döner:
+- Toplam alış değeri, toplam güncel değer
+- Toplam kar/zarar ve yüzdesel değişim
+- `ByType`: Yatırım türlerine göre gruplu dağılım
 
 ---
 
-### 2. `lib/screens/main_screen.dart` (güncellendi)
+## 📱 Frontend (Flutter)
 
-**Değişiklikler:**
-- `_PlaceholderPage` widget'ı tamamen kaldırıldı (artık placeholder yok!)
-- Yatırımlar sekmesi: Placeholder → `InvestmentsScreen` ✅
-- `investments_screen.dart` import'u eklendi
+### investments_screen.dart
+
+| Bileşen | Açıklama |
+|---------|----------|
+| Portföy Kartı | Gradient kart, toplam değer + kar/zarar + yüzde |
+| Tür Dağılımı | stock/gold/currency/crypto bazlı gruplu kartlar |
+| Yatırım Listesi | Her yatırımın sembol, isim, adet, fiyat, kar/zarar bilgisi |
+| Ekleme Dialog | Sembol, tam ad, alış fiyatı, güncel fiyat, miktar, tür dropdown |
+| Silme | Karta uzun basarak silme onayı |
+| RefreshIndicator | Aşağı çekerek yenileme |
+
+### api_service.dart Güncellemeleri
+
+Bu fazda eklenen yeni HTTP metotları:
+- `authenticatedPut(endpoint, body)` — Yatırım güncelleme
+- `authenticatedDelete(endpoint)` — Yatırım silme
+
+Her ikisi de boş body kontrolü yapıyor (204 NoContent desteği).
 
 ---
 
-## 📦 Commit Geçmişi
+## 🔧 Karşılaşılan Sorunlar ve Çözümler
 
-Bu fazda **parça parça commit** yaklaşımına geçildi:
+### 1. GenericRepository Uyumsuzluğu
+**Sorun:** Prompt'ta `GetQueryable()` ve `UpdateAsync()` kullanılmıştı ama mevcut `IGenericRepository`'de bu metotlar yoktu.
+**Çözüm:** TransactionService pattern'i uygulandı — `GetAllAsync()` + LINQ filtreleme + `_repository.Update()` + `_context.SaveChangesAsync()`.
 
-| # | Commit | Mesaj |
-|---|--------|-------|
-| 1 | `2c3ab48` | `feat: yatirimlar ekrani - portfolio, cizgi grafik, sparkline listesi` |
-| 2 | `d71b034` | `refactor: main_screen placeholder kaldirildi, InvestmentsScreen entegre edildi` |
-| 3 | — | `docs: faz 4 dokumantasyonu ve PROJE_REHBERI guncellendi` |
+### 2. Migration FK Çakışması
+**Sorun:** EF Core migration'ı otomatik olarak seed user'ı silmeye çalıştı (`DeleteData Users Id=1`), bu da FK constraint ihlali verdi.
+**Çözüm:** Migration dosyasından `DeleteData` ve `InsertData` satırları manuel olarak kaldırıldı.
+
+### 3. 401 Unauthorized (Token Süresi)
+**Sorun:** Emülatörde yatırım eklenemiyordu.
+**Çözüm:** Token süresi dolmuştu, kullanıcı tekrar giriş yaptıktan sonra düzeldi.
 
 ---
 
-## 🔮 İleride Yapılacaklar
+## ⚠️ Teknik Borç: Güncel Fiyat API
 
-- [ ] Backend'e yatırım endpoint'leri ekle (CRUD)
-- [ ] Gerçek piyasa API'si entegrasyonu (Borsa İstanbul, altın, döviz)
-- [ ] Portföy hesaplaması (alış fiyatı vs güncel fiyat)
-- [ ] Yatırım ekleme/çıkarma formu
-- [ ] Periyod seçiciye göre farklı veri gösterimi (1 hafta / 1 ay / 3 ay / 1 yıl)
+Şu an kullanıcı güncel fiyatı **manuel** giriyor. Gerçek uygulamada dış API'lerden otomatik çekilmeli:
+
+| Tür | API | Ücretsiz? |
+|-----|-----|-----------|
+| Hisse (BIST) | CollectAPI / TCMB | ✅ |
+| Altın | CollectAPI | ✅ |
+| Döviz | ExchangeRate API / TCMB | ✅ |
+| Kripto | CoinGecko API | ✅ |
+
+Bu entegrasyon ilerideki fazlarda yapılacak.
+
+---
+
+## 📊 Git Commit'leri
+
+| Commit | Mesaj |
+|--------|-------|
+| `943ad65` | feat: added Investment entity and DTOs |
+| `7644c49` | feat: added PortfolioSummaryDto and IInvestmentService |
+| `45b2a0f` | feat: InvestmentService, Controller, DbContext, DI, Migration |
+| `88eaca1` | feat: InvestmentsScreen API entegrasyonu + authenticatedPut/Delete |
