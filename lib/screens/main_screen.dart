@@ -7,6 +7,7 @@ import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'categories_screen.dart';
 import 'profile_screen.dart';
+import 'investments_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -25,7 +26,7 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _pages = [
       DashboardScreen(key: UniqueKey()),
-      const _PlaceholderPage(title: 'Yatırımlar', icon: Icons.show_chart_rounded),
+      const InvestmentsScreen(),
       const SizedBox(),
       TransactionsScreen(key: UniqueKey()),
       const ProfileScreen(),
@@ -127,32 +128,6 @@ class _MainScreenState extends State<MainScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       tileColor: AppColors.cardBgLight,
       onTap: onTap,
-    );
-  }
-}
-
-// Yatırımlar placeholder (Faz 4'te değişecek)
-class _PlaceholderPage extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  const _PlaceholderPage({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 64, color: AppColors.textMuted),
-            const SizedBox(height: 16),
-            Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 24)),
-            const SizedBox(height: 8),
-            const Text('Yakında...', style: TextStyle(color: AppColors.textMuted)),
-          ],
-        ),
-      ),
     );
   }
 }
