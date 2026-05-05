@@ -1,4 +1,5 @@
 import 'dart:convert';   //Json verileri okumak için
+
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Token'ı telefonun hafızasına kaydetmek için
 
@@ -111,9 +112,45 @@ class ApiService{
                 },
                 body:jsonEncode(body),
             );
+            if (response.body.isEmpty) return {};
             return jsonDecode(response.body);
         }catch(e){
             return {'error':'Bağlantı hatası: $e'};
+        }
+    }
+
+    static Future<dynamic> authenticatedPut(String endpoint, Map<String, dynamic> body) async {
+        try {
+            final token = await getToken();
+            final response = await http.put(
+                Uri.parse('$baseUrl$endpoint'),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer $token',
+                },
+                body: jsonEncode(body),
+            );
+            if (response.body.isEmpty) return {};
+            return jsonDecode(response.body);
+        } catch (e) {
+            return {'error': 'Bağlantı hatası: $e'};
+        }
+    }
+
+    static Future<dynamic> authenticatedDelete(String endpoint) async {
+        try {
+            final token = await getToken();
+            final response = await http.delete(
+                Uri.parse('$baseUrl$endpoint'),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer $token',
+                },
+            );
+            if (response.body.isEmpty) return {};
+            return jsonDecode(response.body);
+        } catch (e) {
+            return {'error': 'Bağlantı hatası: $e'};
         }
     }
 }
