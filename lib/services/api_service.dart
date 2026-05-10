@@ -1,4 +1,5 @@
 import 'dart:convert';   //Json verileri okumak için
+import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Token'ı telefonun hafızasına kaydetmek için
@@ -158,16 +159,23 @@ class ApiService{
     static Future<dynamic> authenticatedUpload(String endpoint, String filePath) async {
         try {
             final token = await getToken();
-            var request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
+            final uri = Uri.parse('$baseUrl$endpoint');
+            debugPrint('[Upload] URL: $uri, Token: ${token?.substring(0, 20)}...');
+            
+            var request = http.MultipartRequest('POST', uri);
             request.headers['Authorization'] = 'Bearer $token';
             request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
             final streamedResponse = await request.send();
             final response = await http.Response.fromStream(streamedResponse);
 
+            debugPrint('[Upload] Status: ${response.statusCode}, Body length: ${response.body.length}');
+            debugPrint('[Upload] Body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
+
             if (response.body.isEmpty) return {};
             return jsonDecode(response.body);
         } catch (e) {
+            debugPrint('[Upload] ERROR: $e');
             return {'error': 'Bağlantı hatası: $e'};
         }
     }

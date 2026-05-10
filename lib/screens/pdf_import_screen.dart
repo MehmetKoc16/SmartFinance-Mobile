@@ -34,11 +34,13 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   Future<void> _loadCategories() async {
     final result = await ApiService.authenticatedGet('/category');
+    debugPrint('[PdfImport] Categories result type: ${result.runtimeType}, value: $result');
     if (result is List) {
       setState(() {
         _categories = List<Map<String, dynamic>>.from(result);
       });
     }
+    debugPrint('[PdfImport] Loaded ${_categories.length} categories');
   }
 
   Future<void> _pickFile() async {
@@ -58,10 +60,14 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     if (_selectedFilePath == null) return;
     setState(() => _isLoading = true);
 
+    debugPrint('[PdfImport] Uploading: $_selectedFilePath');
+
     final result = await ApiService.authenticatedUpload(
       '/pdfimport/parse',
       _selectedFilePath!,
     );
+
+    debugPrint('[PdfImport] Result: $result');
 
     setState(() {
       _isLoading = false;
@@ -78,11 +84,11 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     });
 
     if (_transactions.isEmpty && mounted) {
+      final errorMsg = _parseResult?['error'] ?? _parseResult?['message'] ?? 'PDF\'den işlem çıkarılamadı. Dosya metin tabanlı olmayabilir.';
+      debugPrint('[PdfImport] Error: $errorMsg');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            _parseResult?['message'] ?? 'PDF\'den işlem çıkarılamadı. Dosya metin tabanlı olmayabilir.',
-          ),
+          content: Text(errorMsg),
           backgroundColor: AppColors.orange,
         ),
       );
@@ -105,6 +111,8 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       }
     }
 
+    debugPrint('[PdfImport] Confirm: ${selectedTransactions.length} items selected');
+
     if (selectedTransactions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -117,14 +125,22 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
     setState(() => _isLoading = true);
 
+    debugPrint('[PdfImport] Sending confirm request...');
     final result = await ApiService.authenticatedPost('/pdfimport/confirm', {
       'transactions': selectedTransactions,
     });
+    debugPrint('[PdfImport] Confirm result: $result');
 
     setState(() {
       _isLoading = false;
-      _savedCount = result['count'] ?? 0;
-      _step = 2;
+      if (result is Map && result.containsKey('error')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: ${result['error']}'), backgroundColor: AppColors.red),
+        );
+      } else {
+        _savedCount = result['count'] ?? 0;
+        _step = 2;
+      }
     });
   }
 
