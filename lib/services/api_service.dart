@@ -153,8 +153,22 @@ class ApiService{
             return {'error': 'Bağlantı hatası: $e'};
         }
     }
+
+    /// Multipart file upload (PDF yükleme için)
+    static Future<dynamic> authenticatedUpload(String endpoint, String filePath) async {
+        try {
+            final token = await getToken();
+            var request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
+            request.headers['Authorization'] = 'Bearer $token';
+            request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+            final streamedResponse = await request.send();
+            final response = await http.Response.fromStream(streamedResponse);
+
+            if (response.body.isEmpty) return {};
+            return jsonDecode(response.body);
+        } catch (e) {
+            return {'error': 'Bağlantı hatası: $e'};
+        }
+    }
 }
-
-
-
-

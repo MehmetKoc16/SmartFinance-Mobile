@@ -8,6 +8,7 @@ import 'add_transaction_screen.dart';
 import 'categories_screen.dart';
 import 'profile_screen.dart';
 import 'investments_screen.dart';
+import 'pdf_import_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -107,7 +108,10 @@ class _MainScreenState extends State<MainScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen()));
             }),
             const SizedBox(height: 12),
-            _buildAddOption(Icons.picture_as_pdf_rounded, 'PDF ile Ekle', 'Banka ekstresini yükle (AI)', AppColors.orange, onTap: () => Navigator.pop(context)),
+            _buildAddOption(Icons.picture_as_pdf_rounded, 'PDF ile Ekle', 'Banka ekstresini içe aktar', AppColors.orange, onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PdfImportScreen())).then((_) => _refreshPages());
+            }),
             const SizedBox(height: 16),
           ],
         ),
