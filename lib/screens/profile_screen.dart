@@ -16,6 +16,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double _totalExpense = 0;
   int _transactionCount = 0;
   int _categoryCount = 0;
+  String _userName = '';
+  String _userEmail = '';
+
+  String get _initials {
+    final parts = _userName.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    return 'SF';
+  }
 
   @override
   void initState() {
@@ -26,6 +35,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfileData() async {
     try {
       final now = DateTime.now();
+
+      // Kullanıcı bilgisi
+      final me = await ApiService.authenticatedGet('/auth/me');
+      if (me is Map) {
+        _userName  = me['fullName'] ?? '';
+        _userEmail = me['email']   ?? '';
+      }
 
       // Aylık özet
       final summary = await ApiService.authenticatedGet(
@@ -91,6 +107,156 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ─── ŞİFRE DEĞİŞTİRME ───────────────────────────────────
+
+  void _showChangePasswordSheet() {
+    final currentCtrl = TextEditingController();
+    final newCtrl     = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24,
+              MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Sürükleme çubuğu
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('Şifre Değiştir',
+                  style: TextStyle(color: AppColors.textPrimary,
+                      fontSize: 20, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 20),
+
+              // Mevcut Şifre
+              TextField(
+                controller: currentCtrl,
+                obscureText: true,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Mevcut şifre',
+                  prefixIcon: Icon(Icons.lock_outline, color: AppColors.textMuted),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Yeni Şifre
+              TextField(
+                controller: newCtrl,
+                obscureText: true,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Yeni şifre (min 6 karakter)',
+                  prefixIcon: Icon(Icons.lock_rounded, color: AppColors.textMuted),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Yeni Şifre Tekrar
+              TextField(
+                controller: confirmCtrl,
+                obscureText: true,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Yeni şifre (tekrar)',
+                  prefixIcon: Icon(Icons.lock_rounded, color: AppColors.textMuted),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Kaydet butonu
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: AppColors.gradientPurple,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ElevatedButton(
+                  onPressed: isSubmitting ? null : () async {
+                    // Validation
+                    if (currentCtrl.text.isEmpty || newCtrl.text.isEmpty || confirmCtrl.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: const Text('Tüm alanları doldurunuz!'),
+                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      );
+                      return;
+                    }
+                    if (newCtrl.text.length < 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: const Text('Yeni şifre en az 6 karakter olmalıdır!'),
+                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      );
+                      return;
+                    }
+                    if (newCtrl.text != confirmCtrl.text) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: const Text('Yeni şifreler eşleşmiyor!'),
+                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      );
+                      return;
+                    }
+
+                    setSheetState(() => isSubmitting = true);
+
+                    final result = await ApiService.authenticatedPut('/auth/change-password', {
+                      'currentPassword': currentCtrl.text,
+                      'newPassword': newCtrl.text,
+                    });
+
+                    setSheetState(() => isSubmitting = false);
+
+                    if (mounted) {
+                      if (result is Map && result.containsKey('error')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(result['message'] ?? 'Mevcut şifre hatalı!'),
+                              backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        );
+                      } else {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: const Text('Şifre başarıyla değiştirildi!'),
+                              backgroundColor: AppColors.green, behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(width: 24, height: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Şifreyi Değiştir', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,26 +273,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       width: 90,
                       height: 90,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: AppColors.gradientPurpleCyan,
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text(
-                          'SF',
-                          style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                          _initials,
+                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'SmartFinance',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+                    Text(
+                      _userName.isNotEmpty ? _userName : 'Kullanıcı',
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Premium Kullanıcı',
-                      style: TextStyle(color: AppColors.purple, fontSize: 14),
+                    Text(
+                      _userEmail.isNotEmpty ? _userEmail : '',
+                      style: const TextStyle(color: AppColors.purple, fontSize: 14),
                     ),
 
                     const SizedBox(height: 32),
@@ -168,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSettingsTile(Icons.person_rounded, 'Profil Düzenle', () {}),
                     _buildSettingsTile(Icons.notifications_rounded, 'Bildirimler', () {}),
                     _buildSettingsTile(Icons.palette_rounded, 'Tema', () {}),
-                    _buildSettingsTile(Icons.lock_rounded, 'Şifre Değiştir', () {}),
+                    _buildSettingsTile(Icons.lock_rounded, 'Şifre Değiştir', _showChangePasswordSheet),
                     _buildSettingsTile(Icons.help_outline_rounded, 'Yardım', () {}),
 
                     const SizedBox(height: 16),
@@ -178,9 +344,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: double.infinity,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: AppColors.red.withOpacity(0.1),
+                        color: AppColors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.red.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
                       ),
                       child: TextButton.icon(
                         onPressed: _showLogoutConfirmation,
