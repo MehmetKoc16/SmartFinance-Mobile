@@ -37,6 +37,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await ApiService.authenticatedGet('/category');
+      if (!mounted) return;
+
       if (response is List) {
         setState(() {
           _categories = response;
@@ -51,7 +53,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

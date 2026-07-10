@@ -35,6 +35,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   Future<void> _loadCategories() async {
     final result = await ApiService.authenticatedGet('/category');
     debugPrint('[PdfImport] Categories result type: ${result.runtimeType}, value: $result');
+    if (!mounted) return;
     if (result is List) {
       setState(() {
         _categories = List<Map<String, dynamic>>.from(result);
@@ -68,6 +69,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     );
 
     debugPrint('[PdfImport] Result: $result');
+    if (!mounted) return;
 
     setState(() {
       _isLoading = false;
@@ -130,6 +132,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       'transactions': selectedTransactions,
     });
     debugPrint('[PdfImport] Confirm result: $result');
+    if (!mounted) return;
 
     setState(() {
       _isLoading = false;

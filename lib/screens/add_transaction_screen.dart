@@ -36,6 +36,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _loadCategories() async {
     try {
       final response = await ApiService.authenticatedGet('/category');
+      if (!mounted) return;
+
       if (response is List) {
         setState(() {
           _categories = response;
@@ -50,7 +52,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         setState(() => _isCategoriesLoading = false);
       }
     } catch (e) {
-      setState(() => _isCategoriesLoading = false);
+      if (mounted) setState(() => _isCategoriesLoading = false);
     }
   }
 

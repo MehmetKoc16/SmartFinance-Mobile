@@ -51,6 +51,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
 
       final response = await ApiService.authenticatedGet(endpoint);
+      if (!mounted) return;
 
       if (response is Map && response.containsKey('items')) {
         setState(() {
@@ -62,7 +63,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
