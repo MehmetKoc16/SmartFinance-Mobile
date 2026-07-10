@@ -226,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (mounted) {
                       if (result is Map && result.containsKey('error')) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(result['message'] ?? 'Mevcut şifre hatalı!'),
+                          SnackBar(content: Text(result['error'] ?? 'Mevcut şifre hatalı!'),
                               backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         );

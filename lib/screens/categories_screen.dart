@@ -136,11 +136,34 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               onPressed: () async {
                 if (nameController.text.isEmpty) return;
                 Navigator.pop(context);
-                await ApiService.authenticatedPost('/category', {
+                final result = await ApiService.authenticatedPost('/category', {
                   'name': nameController.text,
                   'type': selectedType,
                 });
+                if (result is Map && result.containsKey('error')) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: Text(result['error']),
+                        backgroundColor: AppColors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    );
+                  }
+                  return;
+                }
                 _loadCategories();
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Kategori eklendi.'),
+                      backgroundColor: AppColors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.purple,
@@ -173,10 +196,31 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ApiService.authenticatedGet('/category/${category['id']}');
-              // DELETE isteği için özel metot lazım, şimdilik GET ile silme yok
-              // İleride authenticatedDelete eklenecek
+              final result = await ApiService.authenticatedDelete('/category/${category['id']}');
+              if (result is Map && result.containsKey('error')) {
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(result['error']),
+                      backgroundColor: AppColors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                }
+                return;
+              }
               _loadCategories();
+              if (mounted) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Kategori silindi.'),
+                    backgroundColor: AppColors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.red,

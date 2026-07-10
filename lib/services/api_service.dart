@@ -83,6 +83,19 @@ class ApiService{
       }
     }
 
+    /// Başarılı (2xx) yanıtlarda decode edilmiş body'yi, hatalı yanıtlarda
+    /// {'error': mesaj} döndürür. Backend hata gövdesi {"message": "..."} şeklinde gelir.
+    static dynamic _decodeResponse(http.Response response) {
+        final data = response.body.isEmpty ? {} : jsonDecode(response.body);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+            return data;
+        }
+        final message = (data is Map && data['message'] != null)
+            ? data['message']
+            : 'İşlem başarısız';
+        return {'error': message};
+    }
+
     static Future<dynamic> authenticatedGet(String endpoint) async{
         try{
             final token = await getToken();
@@ -94,7 +107,7 @@ class ApiService{
                     'Authorization':'Bearer $token',
                 },
             );
-            return jsonDecode(response.body);
+            return _decodeResponse(response);
         }catch(e){
             return {'error': 'Bağlantı hatası: $e'};
         }
@@ -113,8 +126,7 @@ class ApiService{
                 },
                 body:jsonEncode(body),
             );
-            if (response.body.isEmpty) return {};
-            return jsonDecode(response.body);
+            return _decodeResponse(response);
         }catch(e){
             return {'error':'Bağlantı hatası: $e'};
         }
@@ -131,8 +143,7 @@ class ApiService{
                 },
                 body: jsonEncode(body),
             );
-            if (response.body.isEmpty) return {};
-            return jsonDecode(response.body);
+            return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
         }
@@ -148,8 +159,7 @@ class ApiService{
                     'Authorization': 'Bearer $token',
                 },
             );
-            if (response.body.isEmpty) return {};
-            return jsonDecode(response.body);
+            return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
         }

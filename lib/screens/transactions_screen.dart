@@ -120,7 +120,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
     );
     if (confirm == true) {
-      await ApiService.authenticatedDelete('/transaction/$id');
+      final result = await ApiService.authenticatedDelete('/transaction/$id');
+      if (result is Map && result.containsKey('error')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error']),
+              backgroundColor: AppColors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+        return;
+      }
       setState(() {
         _transactions.removeAt(index);
       });
@@ -371,13 +384,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         return;
                       }
 
-                      await ApiService.authenticatedPut('/transaction/${t['id']}', {
+                      final result = await ApiService.authenticatedPut('/transaction/${t['id']}', {
                         'amount': amount,
                         'description': descCtrl.text,
                         'transactionDate': selectedDate.toIso8601String(),
                         'type': selectedType,
                         'categoryId': selectedCategoryId,
                       });
+
+                      if (result is Map && result.containsKey('error')) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(result['error']),
+                              backgroundColor: AppColors.red,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        }
+                        return;
+                      }
 
                       if (ctx.mounted) {
                         Navigator.pop(ctx);
