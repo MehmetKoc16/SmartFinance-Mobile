@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../core/constants/app_colors.dart';
 import '../services/api_service.dart';
 
@@ -58,20 +57,24 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     }
   }
 
-  void _showAddInvestmentDialog() {
-    final nameCtrl = TextEditingController();
-    final fullNameCtrl = TextEditingController();
-    final purchasePriceCtrl = TextEditingController();
-    final currentPriceCtrl = TextEditingController();
-    final quantityCtrl = TextEditingController();
-    String selectedType = 'stock';
+  void _showInvestmentDialog({Map<String, dynamic>? investment}) {
+    final isEdit = investment != null;
+    final nameCtrl = TextEditingController(text: investment?['name'] ?? '');
+    final fullNameCtrl = TextEditingController(text: investment?['fullName'] ?? '');
+    final purchasePriceCtrl = TextEditingController(
+        text: investment != null ? '${investment['purchasePrice'] ?? ''}' : '');
+    final currentPriceCtrl = TextEditingController(
+        text: investment != null ? '${investment['currentPrice'] ?? ''}' : '');
+    final quantityCtrl = TextEditingController(
+        text: investment != null ? '${investment['quantity'] ?? ''}' : '');
+    String selectedType = investment?['investmentType'] ?? 'stock';
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.cardBg,
-          title: const Text('Yatırım Ekle', style: TextStyle(color: AppColors.textPrimary)),
+          title: Text(isEdit ? 'Yatırımı Düzenle' : 'Yatırım Ekle', style: const TextStyle(color: AppColors.textPrimary)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -120,18 +123,44 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.purple),
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || purchasePriceCtrl.text.isEmpty) return;
-                final result = await ApiService.authenticatedPost('/investment', {
+                final body = {
                   'name': nameCtrl.text,
                   'fullName': fullNameCtrl.text,
-                  'purchasePrice': double.tryParse(purchasePriceCtrl.text) ?? 0,
-                  'currentPrice': double.tryParse(currentPriceCtrl.text) ?? 0,
-                  'quantity': double.tryParse(quantityCtrl.text) ?? 0,
+                  'purchasePrice': double.tryParse(purchasePriceCtrl.text.replaceAll(',', '.')) ?? 0,
+                  'currentPrice': double.tryParse(currentPriceCtrl.text.replaceAll(',', '.')) ?? 0,
+                  'quantity': double.tryParse(quantityCtrl.text.replaceAll(',', '.')) ?? 0,
                   'investmentType': selectedType,
-                });
-                if (mounted) Navigator.pop(context);
+                };
+                final result = isEdit
+                    ? await ApiService.authenticatedPut('/investment/${investment['id']}', body)
+                    : await ApiService.authenticatedPost('/investment', body);
+                if (result is Map && result.containsKey('error')) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: Text(result['error']),
+                        backgroundColor: AppColors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    );
+                  }
+                  return;
+                }
+                if (mounted) Navigator.pop(this.context);
                 _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(isEdit ? 'Yatırım güncellendi.' : 'Yatırım eklendi.'),
+                      backgroundColor: AppColors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                }
               },
-              child: const Text('Ekle', style: TextStyle(color: Colors.white)),
+              child: Text(isEdit ? 'Güncelle' : 'Ekle', style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -155,9 +184,32 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
             onPressed: () async {
-              await ApiService.authenticatedDelete('/investment/$id');
-              if (mounted) Navigator.pop(context);
+              final result = await ApiService.authenticatedDelete('/investment/$id');
+              if (result is Map && result.containsKey('error')) {
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(result['error']),
+                      backgroundColor: AppColors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                }
+                return;
+              }
+              if (mounted) Navigator.pop(this.context);
               _loadData();
+              if (mounted) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Yatırım silindi.'),
+                    backgroundColor: AppColors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
             },
             child: const Text('Sil', style: TextStyle(color: Colors.white)),
           ),
@@ -212,7 +264,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                             ),
                           ),
                           IconButton(
-                            onPressed: _showAddInvestmentDialog,
+                            onPressed: () => _showInvestmentDialog(),
                             icon: const Icon(Icons.add_circle_rounded, color: AppColors.purple, size: 30),
                           ),
                         ],
@@ -259,7 +311,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                               const Text('Henüz yatırım yok', style: TextStyle(color: AppColors.textMuted)),
                               const SizedBox(height: 8),
                               TextButton(
-                                onPressed: _showAddInvestmentDialog,
+                                onPressed: () => _showInvestmentDialog(),
                                 child: const Text('İlk yatırımını ekle', style: TextStyle(color: AppColors.purple)),
                               ),
                             ],
@@ -385,6 +437,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final type = inv['investmentType'] ?? '';
 
     return GestureDetector(
+      onTap: () => _showInvestmentDialog(investment: inv),
       onLongPress: () => _showDeleteConfirmation(inv['id'], inv['name'] ?? ''),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
