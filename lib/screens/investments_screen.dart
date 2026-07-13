@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../services/api_service.dart';
+import 'technical_analysis_screen.dart';
 
 class InvestmentsScreen extends StatefulWidget {
   const InvestmentsScreen({super.key});
@@ -20,6 +21,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     'gold': Icons.diamond_rounded,
     'currency': Icons.attach_money_rounded,
     'crypto': Icons.currency_bitcoin_rounded,
+    'fund': Icons.pie_chart_rounded,
   };
 
   final Map<String, Color> _typeColors = {
@@ -27,6 +29,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     'gold': AppColors.orange,
     'currency': AppColors.purple,
     'crypto': const Color(0xFFF7931A),
+    'fund': AppColors.green,
   };
 
   @override
@@ -38,13 +41,41 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final investmentsData = await ApiService.authenticatedGet('/investment');
+      // Ekran her açıldığında/yenilendiğinde fiyatlar önce sağlayıcılardan tazelenir
+      final refreshResult = await ApiService.authenticatedPost('/investment/refresh-prices', {});
+
+      if (refreshResult is Map && refreshResult.containsKey('error')) {
+        // Yenileme başarısız oldu — eski akışa düş (mevcut listeyi olduğu gibi göster)
+        final investmentsData = await ApiService.authenticatedGet('/investment');
+        final summaryData = await ApiService.authenticatedGet('/investment/summary');
+        if (mounted) {
+          setState(() {
+            if (investmentsData is List) {
+              _investments = investmentsData.cast<Map<String, dynamic>>();
+            }
+            if (summaryData is Map) {
+              _summary = summaryData.cast<String, dynamic>();
+            }
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fiyatlar güncellenemedi, önceki değerler gösteriliyor.'),
+              backgroundColor: AppColors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+            ),
+          );
+        }
+        return;
+      }
+
       final summaryData = await ApiService.authenticatedGet('/investment/summary');
 
       if (mounted) {
         setState(() {
-          if (investmentsData is List) {
-            _investments = investmentsData.cast<Map<String, dynamic>>();
+          if (refreshResult is Map && refreshResult['investments'] is List) {
+            _investments = (refreshResult['investments'] as List).cast<Map<String, dynamic>>();
           }
           if (summaryData is Map) {
             _summary = summaryData.cast<String, dynamic>();
@@ -85,8 +116,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 const SizedBox(height: 10),
                 _buildTextField(purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
                 const SizedBox(height: 10),
-                _buildTextField(currentPriceCtrl, 'Güncel Fiyat', isNumber: true),
-                const SizedBox(height: 10),
                 _buildTextField(quantityCtrl, 'Miktar', isNumber: true),
                 const SizedBox(height: 14),
                 // Tip seçici
@@ -107,10 +136,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       DropdownMenuItem(value: 'gold', child: Text('Altın')),
                       DropdownMenuItem(value: 'currency', child: Text('Döviz')),
                       DropdownMenuItem(value: 'crypto', child: Text('Kripto')),
+                      DropdownMenuItem(value: 'fund', child: Text('Fon')),
                     ],
                     onChanged: (v) => setDialogState(() => selectedType = v!),
                   ),
                 ),
+                // Diğer tipler fiyatı otomatik çeker; Fon için TEFAS otomatik çekimi
+                // şu an çalışmadığından geçici olarak elle giriliyor.
+                if (selectedType == 'fund') ...[
+                  const SizedBox(height: 10),
+                  _buildTextField(currentPriceCtrl, 'Güncel Fiyat (Pay Değeri)', isNumber: true),
+                ],
               ],
             ),
           ),
@@ -383,7 +419,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final count = typeData['count'] ?? 0;
     final isPositive = profitLoss >= 0;
 
-    final labels = {'stock': 'Hisse', 'gold': 'Altın', 'currency': 'Döviz', 'crypto': 'Kripto'};
+    final labels = {'stock': 'Hisse', 'gold': 'Altın', 'currency': 'Döviz', 'crypto': 'Kripto', 'fund': 'Fon'};
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -487,6 +523,22 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     style: TextStyle(color: isPositive ? AppColors.green : AppColors.red, fontSize: 10)),
               ],
             ),
+
+            // Teknik analiz butonu — Fon şu an desteklenmiyor (TEFAS geçmiş fiyat verisi yok)
+            if (type != 'fund')
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TechnicalAnalysisScreen(
+                      investmentId: inv['id'],
+                      name: inv['name'] ?? '',
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.query_stats_rounded, color: AppColors.textMuted, size: 22),
+                tooltip: 'Teknik Analiz',
+              ),
           ],
         ),
       ),
