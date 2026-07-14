@@ -94,8 +94,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final fullNameCtrl = TextEditingController(text: investment?['fullName'] ?? '');
     final purchasePriceCtrl = TextEditingController(
         text: investment != null ? '${investment['purchasePrice'] ?? ''}' : '');
-    final currentPriceCtrl = TextEditingController(
-        text: investment != null ? '${investment['currentPrice'] ?? ''}' : '');
     final quantityCtrl = TextEditingController(
         text: investment != null ? '${investment['quantity'] ?? ''}' : '');
     String selectedType = investment?['investmentType'] ?? 'stock';
@@ -141,12 +139,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     onChanged: (v) => setDialogState(() => selectedType = v!),
                   ),
                 ),
-                // Diğer tipler fiyatı otomatik çeker; Fon için TEFAS otomatik çekimi
-                // şu an çalışmadığından geçici olarak elle giriliyor.
-                if (selectedType == 'fund') ...[
-                  const SizedBox(height: 10),
-                  _buildTextField(currentPriceCtrl, 'Güncel Fiyat (Pay Değeri)', isNumber: true),
-                ],
               ],
             ),
           ),
@@ -163,7 +155,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   'name': nameCtrl.text,
                   'fullName': fullNameCtrl.text,
                   'purchasePrice': double.tryParse(purchasePriceCtrl.text.replaceAll(',', '.')) ?? 0,
-                  'currentPrice': double.tryParse(currentPriceCtrl.text.replaceAll(',', '.')) ?? 0,
                   'quantity': double.tryParse(quantityCtrl.text.replaceAll(',', '.')) ?? 0,
                   'investmentType': selectedType,
                 };
@@ -524,21 +515,19 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               ],
             ),
 
-            // Teknik analiz butonu — Fon şu an desteklenmiyor (TEFAS geçmiş fiyat verisi yok)
-            if (type != 'fund')
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TechnicalAnalysisScreen(
-                      investmentId: inv['id'],
-                      name: inv['name'] ?? '',
-                    ),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TechnicalAnalysisScreen(
+                    investmentId: inv['id'],
+                    name: inv['name'] ?? '',
                   ),
                 ),
-                icon: const Icon(Icons.query_stats_rounded, color: AppColors.textMuted, size: 22),
-                tooltip: 'Teknik Analiz',
               ),
+              icon: const Icon(Icons.query_stats_rounded, color: AppColors.textMuted, size: 22),
+              tooltip: 'Teknik Analiz',
+            ),
           ],
         ),
       ),
