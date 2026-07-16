@@ -21,7 +21,11 @@ class SmartFinanceApp extends StatelessWidget {
       title: 'SmartFinance',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
+      navigatorKey: ApiService.navigatorKey,
       home: const SplashScreen(),
+      routes: {
+        '/login': (_) => const LoginScreen(),
+      },
     );
   }
 }

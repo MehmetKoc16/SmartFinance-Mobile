@@ -1,11 +1,31 @@
 import 'dart:convert';   //Json verileri okumak için
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';   //GlobalKey<NavigatorState> ve debugPrint için
 
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Token'ı telefonun hafızasına kaydetmek için
 
 class ApiService{
     static const String baseUrl = 'http://10.0.2.2:5059/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
+
+    // MaterialApp'e bağlanır (main.dart); ekran/context'e bağlı olmadan
+    // her yerden login ekranına yönlendirebilmek için kullanılır.
+    static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+    static bool _isRedirectingToLogin = false;
+
+    // Token süresi dolmuş/geçersizse (401) tüm ekranlar için tek noktadan
+    // oturumu kapatıp login ekranına atar; aynı anda birden fazla isteğin
+    // aynı anda 401 dönmesi durumunda tekrar tekrar yönlendirmeyi engeller.
+    static Future<void> _handleUnauthorized() async {
+        if (_isRedirectingToLogin) return;
+        _isRedirectingToLogin = true;
+        await removeToken();
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false,
+            arguments: {'sessionExpired': true},
+        );
+        _isRedirectingToLogin = false;
+    }
 
     static Future<void> saveToken(String token) async {
         final prefs = await SharedPreferences.getInstance();
@@ -86,6 +106,10 @@ class ApiService{
     /// Başarılı (2xx) yanıtlarda decode edilmiş body'yi, hatalı yanıtlarda
     /// {'error': mesaj} döndürür. Backend hata gövdesi {"message": "..."} şeklinde gelir.
     static dynamic _decodeResponse(http.Response response) {
+        if (response.statusCode == 401) {
+            _handleUnauthorized();
+            return {'error': 'Oturumunuz sona erdi, lütfen tekrar giriş yapın.'};
+        }
         final data = response.body.isEmpty ? {} : jsonDecode(response.body);
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return data;
@@ -182,8 +206,7 @@ class ApiService{
             debugPrint('[Upload] Status: ${response.statusCode}, Body length: ${response.body.length}');
             debugPrint('[Upload] Body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
 
-            if (response.body.isEmpty) return {};
-            return jsonDecode(response.body);
+            return _decodeResponse(response);
         } catch (e) {
             debugPrint('[Upload] ERROR: $e');
             return {'error': 'Bağlantı hatası: $e'};

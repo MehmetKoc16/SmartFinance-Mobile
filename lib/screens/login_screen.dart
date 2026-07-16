@@ -18,6 +18,18 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Oturum süresi dolduğu için ApiService tarafından buraya yönlendirildiyse bilgilendir
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (mounted && args is Map && args['sessionExpired'] == true) {
+        _showError('Oturumunuz sona erdi, lütfen tekrar giriş yapın.');
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
