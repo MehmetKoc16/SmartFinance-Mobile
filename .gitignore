@@ -46,3 +46,8 @@ app.*.map.json
 
 # Proje rehber dosyaları
 PROJE_REHBERI.md
+
+# Gercek banka ekstresi / kisisel finansal test dosyalari commit'lenmesin (KVKK)
+*.pdf
+*.xlsx
+*.xls
