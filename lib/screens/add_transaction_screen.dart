@@ -66,7 +66,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: AppColors.purple,
+              primary: AppColors.accent,
               surface: AppColors.cardBg,
             ),
           ),
@@ -245,7 +245,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 hintText: '0.00',
                 prefixIcon: Padding(
                   padding: EdgeInsets.only(left: 16, top: 12, bottom: 12),
-                  child: Text('₺', style: TextStyle(color: AppColors.purple, fontSize: 24, fontWeight: FontWeight.bold)),
+                  child: Text('₺', style: TextStyle(color: AppColors.accent, fontSize: 24, fontWeight: FontWeight.bold)),
                 ),
               ),
             ),
@@ -306,7 +306,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               child: _isCategoriesLoading
                   ? const Padding(
                       padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator(color: AppColors.purple)),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
                     )
                   : DropdownButtonHideUnderline(
                       child: DropdownButton<int>(
@@ -332,18 +332,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 36),
 
             // Kaydet butonu
-            Container(
+            SizedBox(
               width: double.infinity,
               height: 52,
-              decoration: BoxDecoration(
-                gradient: AppColors.gradientPurple,
-                borderRadius: BorderRadius.circular(12),
-              ),
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveTransaction,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
+                  backgroundColor: AppColors.accent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isLoading
                     ? const SizedBox(

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
-import '../services/api_service.dart';
-import 'login_screen.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
@@ -41,38 +39,73 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  static const _tabs = [
+    (icon: Icons.home_rounded, label: 'Ana Sayfa'),
+    (icon: Icons.show_chart_rounded, label: 'Yatırımlar'),
+    null, // ortadaki FAB yuvası
+    (icon: Icons.receipt_long_rounded, label: 'İşlemler'),
+    (icon: Icons.person_rounded, label: 'Profil'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.cardBg,
-          border: Border(top: BorderSide(color: AppColors.cardBgLight, width: 0.5)),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            if (index == 2) {
-              _showAddMenu();
-            } else {
-              setState(() => _currentIndex = index);
-            }
-          },
-          items: [
-            const BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
-            const BottomNavigationBarItem(icon: Icon(Icons.show_chart_rounded), label: 'Yatırımlar'),
-            BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(gradient: AppColors.gradientPurple, shape: BoxShape.circle),
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
-              ),
-              label: '',
-            ),
-            const BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'İşlemler'),
-            const BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
-          ],
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.cardBg,
+            border: Border.all(color: AppColors.hairline),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(_tabs.length, (index) {
+              final tab = _tabs[index];
+              if (tab == null) {
+                return Transform.translate(
+                  offset: const Offset(0, -14),
+                  child: GestureDetector(
+                    onTap: _showAddMenu,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                      child: const Icon(Icons.add, color: Colors.white, size: 26),
+                    ),
+                  ),
+                );
+              }
+              final isActive = index == _currentIndex;
+              return GestureDetector(
+                onTap: () => setState(() => _currentIndex = index),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.cardBgLight : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(tab.icon, size: 20, color: isActive ? AppColors.textPrimary : AppColors.textMuted),
+                      const SizedBox(height: 3),
+                      Text(
+                        tab.label,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );
@@ -97,13 +130,13 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 24),
             const Text('İşlem Ekle', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 20),
-            _buildAddOption(Icons.edit_note_rounded, 'Elle Ekle', 'Gelir veya gider ekle', AppColors.purple, onTap: () async {
+            _buildAddOption(Icons.edit_note_rounded, 'Elle Ekle', 'Gelir veya gider ekle', AppColors.accent, onTap: () async {
               Navigator.pop(context);
               final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionScreen()));
               if (result == true) _refreshPages();
             }),
             const SizedBox(height: 12),
-            _buildAddOption(Icons.category_rounded, 'Kategoriler', 'Kategori ekle veya düzenle', AppColors.cyan, onTap: () {
+            _buildAddOption(Icons.category_rounded, 'Kategoriler', 'Kategori ekle veya düzenle', AppColors.accent, onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen()));
             }),

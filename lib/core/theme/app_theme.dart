@@ -10,8 +10,8 @@ class AppTheme {
 
       // Renk şeması
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.purple,
-        secondary: AppColors.cyan,
+        primary: AppColors.accent,
+        secondary: AppColors.accent,
         surface: AppColors.cardBg,
         error: AppColors.red,
       ),
@@ -21,30 +21,33 @@ class AppTheme {
         backgroundColor: AppColors.background,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.inter(
+        titleTextStyle: GoogleFonts.nunito(
           color: AppColors.textPrimary,
           fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w800,
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
 
-      // Metin teması
-      textTheme: GoogleFonts.interTextTheme(
+      // Metin teması — kalın/yuvarlak hatlı Nunito, önceki varsayılan Inter'ın yerine
+      textTheme: GoogleFonts.nunitoTextTheme(
         const TextTheme(
-          headlineLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-          headlineMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+          headlineLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+          headlineMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
           bodyLarge: TextStyle(color: AppColors.textPrimary),
           bodyMedium: TextStyle(color: AppColors.textSecondary),
           bodySmall: TextStyle(color: AppColors.textMuted),
         ),
       ),
 
-      // Kart teması
+      // Kart teması — düz/solid, ince kenarlık (cam/gölge efekti yok)
       cardTheme: CardThemeData(
         color: AppColors.cardBg,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.hairline, width: 1),
+        ),
       ),
 
       // Input teması
@@ -61,7 +64,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.purple, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
         ),
         hintStyle: const TextStyle(color: AppColors.textMuted),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -70,13 +73,13 @@ class AppTheme {
       // Buton teması
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.purple,
+          backgroundColor: AppColors.accent,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.inter(
+          textStyle: GoogleFonts.nunito(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -84,7 +87,7 @@ class AppTheme {
       // BottomNav teması
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.cardBg,
-        selectedItemColor: AppColors.cyan,
+        selectedItemColor: AppColors.accent,
         unselectedItemColor: AppColors.textMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,

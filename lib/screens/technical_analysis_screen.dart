@@ -65,12 +65,12 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : _error != null
                 ? _buildError()
                 : RefreshIndicator(
                     onRefresh: _loadData,
-                    color: AppColors.purple,
+                    color: AppColors.accent,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(20),
@@ -95,7 +95,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             const SizedBox(height: 16),
             TextButton(
               onPressed: _loadData,
-              child: const Text('Tekrar Dene', style: TextStyle(color: AppColors.purple)),
+              child: const Text('Tekrar Dene', style: TextStyle(color: AppColors.accent)),
             ),
           ],
         ),
@@ -251,7 +251,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             LineChartBarData(
               spots: spots,
               isCurved: false,
-              color: AppColors.purple,
+              color: AppColors.violet,
               barWidth: 2,
               dotData: const FlDotData(show: false),
             ),

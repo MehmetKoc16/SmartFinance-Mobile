@@ -94,16 +94,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 60),
 
               // Logo
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppColors.gradientPurpleCyan.createShader(bounds),
-                child: const Text(
-                  'SmartFinance',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              const Text(
+                'SmartFinance',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.accent,
                 ),
               ),
               const SizedBox(height: 8),
@@ -169,18 +165,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 32),
 
-              // Kayıt butonu (gradient)
-              Container(
+              // Kayıt butonu
+              SizedBox(
                 width: double.infinity,
                 height: 52,
-                decoration: BoxDecoration(
-                  gradient: AppColors.gradientPurple,
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
+                    backgroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     shadowColor: Colors.transparent,
                   ),
                   child: _isLoading
@@ -217,7 +210,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: const Text(
                       'Giriş Yap',
                       style: TextStyle(
-                        color: AppColors.cyan,
+                        color: AppColors.accent,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

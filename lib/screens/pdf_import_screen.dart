@@ -186,7 +186,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
             ),
             child: const Column(
               children: [
-                CircularProgressIndicator(color: AppColors.purple),
+                CircularProgressIndicator(color: AppColors.accent),
                 SizedBox(height: 20),
                 Text('PDF analiz ediliyor...', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
                 SizedBox(height: 8),
@@ -211,7 +211,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           Container(
             width: 100, height: 100,
             decoration: BoxDecoration(
-              gradient: AppColors.gradientPurpleCyan,
+              color: AppColors.accent,
               borderRadius: BorderRadius.circular(24),
             ),
             child: const Icon(Icons.picture_as_pdf, size: 50, color: Colors.white),
@@ -301,7 +301,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
             child: ElevatedButton(
               onPressed: _selectedFilePath != null ? _parseFile : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.purple,
+                backgroundColor: AppColors.accent,
                 disabledBackgroundColor: AppColors.textMuted,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -341,7 +341,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: AppColors.gradientPurpleCyan,
+            color: AppColors.accent,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -475,7 +475,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
         leading: Checkbox(
           value: _selectedItems[index],
           onChanged: (v) => setState(() => _selectedItems[index] = v ?? false),
-          activeColor: AppColors.purple,
+          activeColor: AppColors.accent,
           side: const BorderSide(color: AppColors.textSecondary),
         ),
         title: Row(
@@ -522,7 +522,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: currentCatId != null
-            ? AppColors.purple.withValues(alpha: 0.2)
+            ? AppColors.accent.withValues(alpha: 0.2)
             : AppColors.textMuted.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -588,7 +588,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.purple,
+                  backgroundColor: AppColors.accent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Tamam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),

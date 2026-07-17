@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../services/api_service.dart';
-import '../widgets/donut_chart.dart';
 import '../widgets/transaction_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -119,10 +118,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : RefreshIndicator(
                 onRefresh: _loadDashboardData,
-                color: AppColors.purple,
+                color: AppColors.accent,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
@@ -133,24 +132,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              Text(
-                                'Merhaba 👋',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 14,
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'SmartFinance',
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Merhaba 👋',
+                                    style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'SmartFinance',
+                                    style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -158,11 +163,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: AppColors.cardBg,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: AppColors.hairline),
                             ),
                             child: const Icon(
                               Icons.notifications_none_rounded,
                               color: AppColors.textSecondary,
+                              size: 18,
                             ),
                           ),
                         ],
@@ -171,54 +178,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 20),
 
                       // Ay seçici
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              onPressed: () => _changeMonth(-1),
-                              icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
-                              constraints: const BoxConstraints(),
-                              padding: EdgeInsets.zero,
-                            ),
-                            Text(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildMonthNavButton(Icons.chevron_left, () => _changeMonth(-1)),
+                          SizedBox(
+                            width: 120,
+                            child: Text(
                               DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
+                              textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            IconButton(
-                              onPressed: _isCurrentMonth ? null : () => _changeMonth(1),
-                              icon: Icon(
-                                Icons.chevron_right,
-                                color: _isCurrentMonth ? AppColors.textMuted : AppColors.textSecondary,
-                              ),
-                              constraints: const BoxConstraints(),
-                              padding: EdgeInsets.zero,
+                          ),
+                          _buildMonthNavButton(
+                            Icons.chevron_right,
+                            _isCurrentMonth ? null : () => _changeMonth(1),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Bakiye kartı — halka + rakam
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBg,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: AppColors.hairline),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildBalanceRing(),
+                            const SizedBox(width: 18),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'BAKİYE',
+                                  style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                                ),
+                                const SizedBox(height: 2),
+                                Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      const TextSpan(text: '₺', style: TextStyle(color: AppColors.accent, fontSize: 22, fontWeight: FontWeight.w800)),
+                                      TextSpan(
+                                        text: _balance.toStringAsFixed(0),
+                                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 30, fontWeight: FontWeight.w800),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
 
-                      // Donut chart
-                      DonutChart(
-                        totalIncome: _totalIncome,
-                        totalExpense: _totalExpense,
-                        balance: _balance,
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Gelir / Gider kartları
+                      // Gelir / Gider çipleri
                       Row(
                         children: [
                           Expanded(
@@ -227,15 +251,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               _totalIncome,
                               AppColors.green,
                               Icons.arrow_downward_rounded,
+                              1.0,
                             ),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: _buildSummaryCard(
                               'Gider',
                               _totalExpense,
                               AppColors.red,
                               Icons.arrow_upward_rounded,
+                              _totalIncome == 0 ? 0 : (_totalExpense / _totalIncome).clamp(0, 1),
                             ),
                           ),
                         ],
@@ -299,12 +325,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String title, double amount, Color color, IconData icon) {
+  Widget _buildMonthNavButton(IconData icon, VoidCallback? onTap) {
+    final enabled = onTap != null;
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: 30,
+      height: 30,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.hairline),
+      ),
+      child: IconButton(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16, color: enabled ? AppColors.textSecondary : AppColors.textMuted),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+      ),
+    );
+  }
+
+  Widget _buildBalanceRing() {
+    return Container(
+      width: 68,
+      height: 68,
+      padding: const EdgeInsets.all(3),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: SweepGradient(
+          colors: [AppColors.accentDark, AppColors.accent, AppColors.accentDark],
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(color: AppColors.cardBg, shape: BoxShape.circle),
+        child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.accent, size: 26),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(String title, double amount, Color color, IconData icon, num fillRatio) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,27 +377,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 16),
+                child: Icon(icon, color: color, size: 14),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               Text(
                 title,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             '₺${amount.toStringAsFixed(0)}',
             style: TextStyle(
               color: color,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: fillRatio.toDouble(),
+              minHeight: 4,
+              backgroundColor: AppColors.cardBgLight,
+              valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
         ],

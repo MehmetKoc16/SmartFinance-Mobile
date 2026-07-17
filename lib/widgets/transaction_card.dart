@@ -27,25 +27,26 @@ class TransactionCard extends StatelessWidget {
     final displayIcon = icon ?? (isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.hairline),
       ),
       child: Row(
         children: [
           // Kategori ikonu
           Container(
-            width: 46,
-            height: 46,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(displayIcon, color: color, size: 22),
+            child: Icon(displayIcon, color: color, size: 19),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
 
           // Açıklama + kategori
           Expanded(
@@ -56,18 +57,18 @@ class TransactionCard extends StatelessWidget {
                   description,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   categoryName,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+                    color: AppColors.textMuted,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -82,16 +83,16 @@ class TransactionCard extends StatelessWidget {
                 '$prefix₺${amount.toStringAsFixed(2)}',
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 date,
                 style: const TextStyle(
                   color: AppColors.textMuted,
-                  fontSize: 11,
+                  fontSize: 10.5,
                 ),
               ),
             ],

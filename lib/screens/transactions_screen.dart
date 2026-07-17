@@ -261,7 +261,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     hintText: '0.00',
                     prefixIcon: Padding(
                       padding: EdgeInsets.only(left: 16, top: 8, bottom: 8),
-                      child: Text('₺', style: TextStyle(color: AppColors.purple, fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: Text('₺', style: TextStyle(color: AppColors.accent, fontSize: 20, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
@@ -292,7 +292,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       lastDate: DateTime.now(),
                       builder: (context, child) => Theme(
                         data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.dark(primary: AppColors.purple, surface: AppColors.cardBg),
+                          colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.cardBg),
                         ),
                         child: child!,
                       ),
@@ -350,13 +350,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 const SizedBox(height: 28),
 
                 // Güncelle butonu
-                Container(
+                SizedBox(
                   width: double.infinity,
                   height: 52,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.gradientPurple,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                   child: ElevatedButton(
                     onPressed: () async {
                       final amount = double.tryParse(amountCtrl.text.replaceAll(',', '.'));
@@ -423,8 +419,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
+                      backgroundColor: AppColors.accent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text('Güncelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
@@ -460,12 +456,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           // İşlem listesi
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+                ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
                 : _transactions.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _loadTransactions,
-                        color: AppColors.purple,
+                        color: AppColors.accent,
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: _transactions.length,
@@ -544,8 +540,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isActive ? AppColors.gradientPurple : null,
-          color: isActive ? null : AppColors.cardBg,
+          color: isActive ? AppColors.accent : AppColors.cardBg,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(

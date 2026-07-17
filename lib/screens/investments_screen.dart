@@ -27,7 +27,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   final Map<String, Color> _typeColors = {
     'stock': AppColors.cyan,
     'gold': AppColors.orange,
-    'currency': AppColors.purple,
+    'currency': AppColors.violet,
     'crypto': const Color(0xFFF7931A),
     'fund': AppColors.green,
   };
@@ -148,7 +148,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.purple),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || purchasePriceCtrl.text.isEmpty) return;
                 final body = {
@@ -268,10 +268,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : RefreshIndicator(
                 onRefresh: _loadData,
-                color: AppColors.purple,
+                color: AppColors.accent,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
@@ -292,7 +292,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           ),
                           IconButton(
                             onPressed: () => _showInvestmentDialog(),
-                            icon: const Icon(Icons.add_circle_rounded, color: AppColors.purple, size: 30),
+                            icon: const Icon(Icons.add_circle_rounded, color: AppColors.accent, size: 30),
                           ),
                         ],
                       ),
@@ -339,7 +339,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                               const SizedBox(height: 8),
                               TextButton(
                                 onPressed: () => _showInvestmentDialog(),
-                                child: const Text('İlk yatırımını ekle', style: TextStyle(color: AppColors.purple)),
+                                child: const Text('İlk yatırımını ekle', style: TextStyle(color: AppColors.accent)),
                               ),
                             ],
                           ),
@@ -364,7 +364,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: AppColors.gradientPurpleCyan,
+        color: AppColors.accent,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -424,10 +424,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(
-              color: (_typeColors[type] ?? AppColors.purple).withOpacity(0.12),
+              color: (_typeColors[type] ?? AppColors.accent).withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(_typeIcons[type] ?? Icons.help, color: _typeColors[type] ?? AppColors.purple, size: 20),
+            child: Icon(_typeIcons[type] ?? Icons.help, color: _typeColors[type] ?? AppColors.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -479,10 +479,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             Container(
               width: 46, height: 46,
               decoration: BoxDecoration(
-                color: (_typeColors[type] ?? AppColors.purple).withOpacity(0.12),
+                color: (_typeColors[type] ?? AppColors.accent).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(_typeIcons[type] ?? Icons.show_chart, color: _typeColors[type] ?? AppColors.purple, size: 22),
+              child: Icon(_typeIcons[type] ?? Icons.show_chart, color: _typeColors[type] ?? AppColors.accent, size: 22),
             ),
             const SizedBox(width: 14),
 

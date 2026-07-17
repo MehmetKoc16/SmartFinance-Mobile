@@ -179,14 +179,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
 
               // Kaydet butonu
-              Container(
+              SizedBox(
                 width: double.infinity,
                 height: 52,
-                decoration: BoxDecoration(
-                  gradient: AppColors.gradientPurple,
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   onPressed: isSubmitting ? null : () async {
                     // Validation
                     if (currentCtrl.text.isEmpty || newCtrl.text.isEmpty || confirmCtrl.text.isEmpty) {
@@ -240,10 +240,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                  ),
                   child: isSubmitting
                       ? const SizedBox(width: 24, height: 24,
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -262,7 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -274,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 90,
                       height: 90,
                       decoration: const BoxDecoration(
-                        gradient: AppColors.gradientPurpleCyan,
+                        color: AppColors.accent,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -292,7 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 4),
                     Text(
                       _userEmail.isNotEmpty ? _userEmail : '',
-                      style: const TextStyle(color: AppColors.purple, fontSize: 14),
+                      style: const TextStyle(color: AppColors.accent, fontSize: 14),
                     ),
 
                     const SizedBox(height: 32),

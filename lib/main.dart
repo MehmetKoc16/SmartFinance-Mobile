@@ -66,17 +66,12 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Gradient logo
-            ShaderMask(
-              shaderCallback: (bounds) =>
-                  AppColors.gradientPurpleCyan.createShader(bounds),
-              child: const Text(
-                'SmartFinance',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+            const Text(
+              'SmartFinance',
+              style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.w800,
+                color: AppColors.accent,
               ),
             ),
             const SizedBox(height: 16),
@@ -85,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             ),
             const SizedBox(height: 40),
-            const CircularProgressIndicator(color: AppColors.purple),
+            const CircularProgressIndicator(color: AppColors.accent),
           ],
         ),
       ),

@@ -17,7 +17,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   final List<Map<String, dynamic>> _categoryStyles = [
     {'icon': Icons.restaurant_rounded, 'color': AppColors.orange},
     {'icon': Icons.shopping_cart_rounded, 'color': AppColors.cyan},
-    {'icon': Icons.directions_bus_rounded, 'color': AppColors.purple},
+    {'icon': Icons.directions_bus_rounded, 'color': AppColors.violet},
     {'icon': Icons.attach_money_rounded, 'color': AppColors.green},
     {'icon': Icons.card_giftcard_rounded, 'color': AppColors.green},
     {'icon': Icons.receipt_rounded, 'color': AppColors.red},
@@ -168,7 +168,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.purple,
+                backgroundColor: AppColors.accent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Ekle'),
@@ -242,18 +242,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         title: const Text('Kategoriler'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_rounded, color: AppColors.purple),
+            icon: const Icon(Icons.add_rounded, color: AppColors.accent),
             onPressed: _showAddCategoryDialog,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
           : _categories.isEmpty
               ? _buildEmptyState()
               : RefreshIndicator(
                   onRefresh: _loadCategories,
-                  color: AppColors.purple,
+                  color: AppColors.accent,
                   child: GridView.builder(
                     padding: const EdgeInsets.all(20),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

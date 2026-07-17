@@ -89,16 +89,12 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 80),
 
               // Logo
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppColors.gradientPurpleCyan.createShader(bounds),
-                child: const Text(
-                  'SmartFinance',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              const Text(
+                'SmartFinance',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.accent,
                 ),
               ),
               const SizedBox(height: 8),
@@ -154,26 +150,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () {},
                   child: const Text(
                     'Şifremi Unuttum?',
-                    style: TextStyle(color: AppColors.cyan, fontSize: 14),
+                    style: TextStyle(color: AppColors.accent, fontSize: 14),
                   ),
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Giriş butonu (gradient)
-              Container(
+              // Giriş butonu
+              SizedBox(
                 width: double.infinity,
                 height: 52,
-                decoration: BoxDecoration(
-                  gradient: AppColors.gradientPurple,
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
+                    backgroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _isLoading
                       ? const SizedBox(
