@@ -47,7 +47,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['pdf', 'xlsx'],
     );
     if (result != null && result.files.single.path != null) {
       setState(() {
@@ -86,7 +86,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     });
 
     if (_transactions.isEmpty && mounted) {
-      final errorMsg = _parseResult?['error'] ?? _parseResult?['message'] ?? 'PDF\'den işlem çıkarılamadı. Dosya metin tabanlı olmayabilir.';
+      final errorMsg = _parseResult?['error'] ?? _parseResult?['message'] ?? 'Dosyadan işlem çıkarılamadı.';
       debugPrint('[PdfImport] Error: $errorMsg');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -152,7 +152,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('PDF İçe Aktar'),
+        title: const Text('Ekstre İçe Aktar'),
         backgroundColor: AppColors.cardBg,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
@@ -223,7 +223,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Banka ekstresi PDF dosyanızı seçin.\nİşlemler otomatik olarak algılanacak.',
+            'Banka ekstresi dosyanızı seçin (PDF veya Excel).\nİşlemler otomatik olarak algılanacak.',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
             textAlign: TextAlign.center,
           ),
@@ -252,7 +252,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _selectedFileName ?? 'PDF dosyası seçin',
+                    _selectedFileName ?? 'PDF veya Excel dosyası seçin',
                     style: TextStyle(
                       color: _selectedFilePath != null ? AppColors.green : AppColors.textSecondary,
                       fontSize: 15, fontWeight: FontWeight.w500,
@@ -285,7 +285,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Halkbank, Ziraat ve diğer metin tabanlı PDF ekstreleri desteklenir.',
+                    'Halkbank, Ziraat ve diğer metin tabanlı PDF ekstreleri; Ziraat için ayrıca Excel (.xlsx) ekstre çıktısı desteklenir.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ),
