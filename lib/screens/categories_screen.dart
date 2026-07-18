@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/constants/category_style.dart';
+import '../core/theme/app_theme.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -11,191 +15,251 @@ class CategoriesScreen extends StatefulWidget {
 
 class _CategoriesScreenState extends State<CategoriesScreen> {
   List<dynamic> _categories = [];
+  Map<int, double> _spendByCategory = {};
   bool _isLoading = true;
-
-  // Kategori ikonları ve renkleri
-  final List<Map<String, dynamic>> _categoryStyles = [
-    {'icon': Icons.restaurant_rounded, 'color': AppColors.orange},
-    {'icon': Icons.shopping_cart_rounded, 'color': AppColors.cyan},
-    {'icon': Icons.directions_bus_rounded, 'color': AppColors.violet},
-    {'icon': Icons.attach_money_rounded, 'color': AppColors.green},
-    {'icon': Icons.card_giftcard_rounded, 'color': AppColors.green},
-    {'icon': Icons.receipt_rounded, 'color': AppColors.red},
-    {'icon': Icons.home_rounded, 'color': const Color(0xFF8B5CF6)},
-    {'icon': Icons.health_and_safety_rounded, 'color': const Color(0xFFEC4899)},
-    {'icon': Icons.school_rounded, 'color': const Color(0xFF3B82F6)},
-    {'icon': Icons.sports_esports_rounded, 'color': const Color(0xFFF97316)},
-  ];
 
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    _loadData();
   }
 
-  Future<void> _loadCategories() async {
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final response = await ApiService.authenticatedGet('/category');
-      if (!mounted) return;
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 1).subtract(const Duration(seconds: 1));
 
-      if (response is List) {
+      final results = await Future.wait([
+        ApiService.authenticatedGet('/category'),
+        ApiService.authenticatedGet(
+          '/transaction/filter?page=1&pageSize=100'
+          '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
+        ),
+      ]);
+
+      final categories = results[0];
+      final txResponse = results[1];
+
+      final Map<int, double> spend = {};
+      if (txResponse is Map && txResponse['items'] is List) {
+        for (final t in (txResponse['items'] as List)) {
+          final catId = t['categoryId'];
+          if (catId == null) continue;
+          final amt = (t['amount'] ?? 0).toDouble();
+          spend[catId as int] = (spend[catId] ?? 0) + amt;
+        }
+      }
+
+      if (mounted) {
         setState(() {
-          _categories = response;
+          _categories = categories is List ? categories : [];
+          _spendByCategory = spend;
           _isLoading = false;
         });
-      } else if (response is Map && response.containsKey('items')) {
-        setState(() {
-          _categories = response['items'];
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Map<String, dynamic> _getStyle(int index) {
-    return _categoryStyles[index % _categoryStyles.length];
-  }
-
   void _showAddCategoryDialog() {
+    final t = AppTokens.of(context);
     final nameController = TextEditingController();
     int selectedType = 2; // varsayılan: Gider
+    String selectedIcon = 'shopping-bag';
+    Color selectedColor = CategoryStyles.colorPicker.first;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Yeni Kategori', style: TextStyle(color: AppColors.textPrimary)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Kategori adı',
-                  prefixIcon: Icon(Icons.category_rounded, color: AppColors.textMuted),
+      isScrollControlled: true,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setDialogState(() => selectedType = 1),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: selectedType == 1 ? AppColors.green.withOpacity(0.2) : AppColors.cardBgLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: selectedType == 1 ? Border.all(color: AppColors.green) : null,
-                        ),
-                        child: Center(
-                          child: Text('Gelir', style: TextStyle(
-                            color: selectedType == 1 ? AppColors.green : AppColors.textMuted,
-                            fontWeight: FontWeight.w600,
-                          )),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setDialogState(() => selectedType = 2),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: selectedType == 2 ? AppColors.red.withOpacity(0.2) : AppColors.cardBgLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: selectedType == 2 ? Border.all(color: AppColors.red) : null,
-                        ),
-                        child: Center(
-                          child: Text('Gider', style: TextStyle(
-                            color: selectedType == 2 ? AppColors.red : AppColors.textMuted,
-                            fontWeight: FontWeight.w600,
-                          )),
+                const SizedBox(height: 16),
+                Text('Yeni Kategori', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  style: TextStyle(color: t.text),
+                  decoration: const InputDecoration(hintText: 'Kategori adı'),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(12)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSheetState(() => selectedType = 2),
+                          child: Container(
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: selectedType == 2 ? t.brand : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Text('Gider',
+                                style: TextStyle(
+                                    color: selectedType == 2 ? Colors.white : t.textSec,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ),
                         ),
                       ),
-                    ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSheetState(() => selectedType = 1),
+                          child: Container(
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: selectedType == 1 ? t.brand : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Text('Gelir',
+                                style: TextStyle(
+                                    color: selectedType == 1 ? Colors.white : t.textSec,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.isEmpty) return;
-                Navigator.pop(context);
-                final result = await ApiService.authenticatedPost('/category', {
-                  'name': nameController.text,
-                  'type': selectedType,
-                });
-                if (result is Map && result.containsKey('error')) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(
-                        content: Text(result['error']),
-                        backgroundColor: AppColors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                const SizedBox(height: 16),
+                Text('Simge', style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: CategoryStyles.iconByName.entries.map((e) {
+                    final isSelected = selectedIcon == e.key;
+                    return GestureDetector(
+                      onTap: () => setSheetState(() => selectedIcon = e.key),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: isSelected ? t.brandSoft : t.card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isSelected ? t.brand : t.border, width: 2),
+                        ),
+                        child: Icon(e.value, color: t.text, size: 19),
                       ),
                     );
-                  }
-                  return;
-                }
-                _loadCategories();
-                if (mounted) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Kategori eklendi.'),
-                      backgroundColor: AppColors.green,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Ekle'),
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Text('Renk', style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: CategoryStyles.colorPicker.map((c) {
+                    final isSelected = selectedColor == c;
+                    return GestureDetector(
+                      onTap: () => setSheetState(() => selectedColor = c),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: c,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: isSelected ? t.text : Colors.transparent, width: 2),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (nameController.text.trim().isEmpty) return;
+                      Navigator.pop(ctx);
+                      final colorHex =
+                          '#${selectedColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+                      final result = await ApiService.authenticatedPost('/category', {
+                        'name': nameController.text.trim(),
+                        'type': selectedType,
+                        'icon': selectedIcon,
+                        'color': colorHex,
+                      });
+                      if (result is Map && result.containsKey('error')) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(result['error']),
+                              backgroundColor: t.red,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                      _loadData();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Kategori eklendi.'),
+                            backgroundColor: t.green,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Kaydet'),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   void _showDeleteConfirmation(dynamic category) {
+    final t = AppTokens.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
+        backgroundColor: t.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Kategoriyi Sil', style: TextStyle(color: AppColors.textPrimary)),
+        title: Text('Kategoriyi Sil', style: TextStyle(color: t.text)),
         content: Text(
           '"${category['name']}" kategorisini silmek istediğinize emin misiniz?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: t.textSec),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('İptal', style: TextStyle(color: t.textTert)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: t.red),
             onPressed: () async {
               Navigator.pop(context);
               final result = await ApiService.authenticatedDelete('/category/${category['id']}');
@@ -204,7 +268,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text(result['error']),
-                      backgroundColor: AppColors.red,
+                      backgroundColor: t.red,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -212,23 +276,19 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 }
                 return;
               }
-              _loadCategories();
+              _loadData();
               if (mounted) {
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
                     content: const Text('Kategori silindi.'),
-                    backgroundColor: AppColors.red,
+                    backgroundColor: t.red,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 );
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Sil'),
+            child: const Text('Sil', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -237,109 +297,125 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kategoriler'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded, color: AppColors.accent),
-            onPressed: _showAddCategoryDialog,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : _categories.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadCategories,
-                  color: AppColors.accent,
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      childAspectRatio: 1.3,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Kategoriler', style: jakarta(fontSize: 20, fontWeight: FontWeight.w700, color: t.text)),
+                  GestureDetector(
+                    onTap: _showAddCategoryDialog,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(color: t.brand, borderRadius: BorderRadius.circular(11)),
+                      child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                     ),
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final cat = _categories[index];
-                      final style = _getStyle(index);
-                      final isIncome = cat['type'] == 1;
-
-                      return GestureDetector(
-                        onLongPress: () => _showDeleteConfirmation(cat),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBg,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: (style['color'] as Color).withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(style['icon'] as IconData, color: style['color'] as Color, size: 22),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isIncome
-                                          ? AppColors.green.withOpacity(0.12)
-                                          : AppColors.red.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      isIncome ? 'Gelir' : 'Gider',
-                                      style: TextStyle(
-                                        color: isIncome ? AppColors.green : AppColors.red,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                cat['name'] ?? 'Kategori',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
                   ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _isLoading
+                    ? Center(child: CircularProgressIndicator(color: t.brand))
+                    : _categories.isEmpty
+                        ? _buildEmptyState(t)
+                        : RefreshIndicator(
+                            onRefresh: _loadData,
+                            color: t.brand,
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 20),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: t.card,
+                                  border: Border.all(color: t.border),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  children: [
+                                    for (var i = 0; i < _categories.length; i++)
+                                      _buildCategoryRow(t, _categories[i], i != _categories.length - 1),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildCategoryRow(AppTokens t, dynamic cat, bool showDivider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final style = CategoryStyles.resolve(cat['name'] ?? '', icon: cat['icon'], color: cat['color']);
+    final isIncome = cat['type'] == 1;
+    final spend = _spendByCategory[cat['id']] ?? 0;
+
+    return GestureDetector(
+      onLongPress: () => _showDeleteConfirmation(cat),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: style.color.withValues(alpha: isDark ? 0.22 : 0.13),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(style.icon, color: style.color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(cat['name'] ?? 'Kategori', style: TextStyle(color: t.text, fontSize: 14.5, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isIncome ? t.greenSoft : t.redSoft,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      isIncome ? 'Gelir' : 'Gider',
+                      style: TextStyle(color: isIncome ? t.green : t.red, fontSize: 10.5, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(formatTRY(spend), style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(AppTokens t) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.category_rounded, size: 64, color: AppColors.textMuted.withOpacity(0.5)),
+          Icon(LucideIcons.tag, size: 56, color: t.textTert),
           const SizedBox(height: 16),
-          const Text('Henüz kategori yok', style: TextStyle(color: AppColors.textSecondary, fontSize: 18)),
+          Text('Henüz kategori yok', style: TextStyle(color: t.textSec, fontSize: 18)),
           const SizedBox(height: 8),
-          const Text('Sağ üstteki + ile kategori ekleyin', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          Text('Sağ üstteki + ile kategori ekleyin', style: TextStyle(color: t.textTert, fontSize: 13)),
         ],
       ),
     );

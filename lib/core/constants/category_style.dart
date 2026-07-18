@@ -61,4 +61,61 @@ class CategoryStyles {
     final color = _fallbackPalette[name.hashCode.abs() % _fallbackPalette.length];
     return CategoryStyle(LucideIcons.tag, color);
   }
+
+  // "Yeni Kategori" ikon seçici + backend'in Icon alanı bu kebab-case
+  // Lucide adlarını kullanıyor.
+  static const Map<String, IconData> iconByName = {
+    'shopping-cart': LucideIcons.shoppingCart,
+    'shopping-bag': LucideIcons.shoppingBag,
+    'home': LucideIcons.home,
+    'receipt': LucideIcons.receipt,
+    'car': LucideIcons.car,
+    'utensils': LucideIcons.utensils,
+    'film': LucideIcons.film,
+    'heart-pulse': LucideIcons.heartPulse,
+    'banknote': LucideIcons.banknote,
+    'trending-up': LucideIcons.trendingUp,
+    'landmark': LucideIcons.landmark,
+    'arrow-left-right': LucideIcons.arrowLeftRight,
+    'more-horizontal': LucideIcons.moreHorizontal,
+    'gift': LucideIcons.gift,
+    'briefcase': LucideIcons.briefcase,
+    'graduation-cap': LucideIcons.graduationCap,
+    'dumbbell': LucideIcons.dumbbell,
+    'plane': LucideIcons.plane,
+    'gamepad-2': LucideIcons.gamepad2,
+  };
+
+  static const List<Color> colorPicker = [
+    Color(0xFF3B82F6),
+    Color(0xFF8B5CF6),
+    Color(0xFF14B8A6),
+    Color(0xFFF97316),
+    Color(0xFFEC4899),
+    Color(0xFF06B6D4),
+    Color(0xFF84CC16),
+    Color(0xFFEAB308),
+    Color(0xFFF43F5E),
+    Color(0xFF64748B),
+  ];
+
+  static Color? _parseHex(String? hex) {
+    if (hex == null || hex.isEmpty) return null;
+    final clean = hex.replaceFirst('#', '');
+    final value = int.tryParse(clean, radix: 16);
+    if (value == null) return null;
+    return Color(0xFF000000 | value);
+  }
+
+  /// Backend'den gelen açık Icon/Color varsa onu kullanır (ör. kullanıcının
+  /// "Yeni Kategori" ile seçtiği), yoksa isim bazlı sabit eşlemeye düşer.
+  static CategoryStyle resolve(String name, {String? icon, String? color}) {
+    final resolvedIcon = iconByName[icon];
+    final resolvedColor = _parseHex(color);
+    if (resolvedIcon != null && resolvedColor != null) {
+      return CategoryStyle(resolvedIcon, resolvedColor);
+    }
+    final fallback = of(name);
+    return CategoryStyle(resolvedIcon ?? fallback.icon, resolvedColor ?? fallback.color);
+  }
 }
