@@ -72,7 +72,7 @@ class TransactionCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   if (hasCategory)
                     Text(
-                      '$categoryName · $date',
+                      date.isEmpty ? categoryName : '$categoryName · $date',
                       style: TextStyle(color: t.textSec, fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

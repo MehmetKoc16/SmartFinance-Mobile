@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/theme/app_theme.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../widgets/transaction_card.dart';
 
@@ -19,13 +23,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   int _currentPage = 1;
   int _totalPages = 1;
   int _selectedFilter = 0; // 0=Tümü, 1=Gelir, 2=Gider
-  final int _pageSize = 10;
+  final int _pageSize = 15;
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
     _loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCategories() async {
@@ -49,6 +62,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (_selectedFilter > 0) {
         endpoint += '&type=$_selectedFilter';
       }
+      if (_searchCtrl.text.trim().isNotEmpty) {
+        endpoint += '&search=${Uri.encodeQueryComponent(_searchCtrl.text.trim())}';
+      }
 
       final response = await ApiService.authenticatedGet(endpoint);
       if (!mounted) return;
@@ -67,12 +83,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _currentPage = 1;
+      _loadTransactions();
+    });
+  }
+
   String _getCategoryName(dynamic transaction) {
     final catId = transaction['categoryId'];
     if (catId != null && _categoryMap.containsKey(catId)) {
       return _categoryMap[catId]!;
     }
-    return transaction['categoryName'] ?? 'Kategori';
+    return '';
   }
 
   void _onFilterChanged(int filter) {
@@ -83,36 +107,56 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _loadTransactions();
   }
 
-  String _formatDate(String? dateStr) {
+  String _formatDay(String? dateStr) {
     if (dateStr == null) return '';
     try {
       final date = DateTime.parse(dateStr);
-      return DateFormat('dd MMM', 'tr_TR').format(date);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final d = DateTime(date.year, date.month, date.day);
+      if (d == today) return 'Bugün';
+      if (d == yesterday) return 'Dün';
+      return DateFormat('d MMMM', 'tr_TR').format(date);
     } catch (e) {
-      return dateStr;
+      return '';
     }
+  }
+
+  List<MapEntry<String, List<dynamic>>> _groupByDay() {
+    final Map<String, List<dynamic>> grouped = {};
+    final List<String> order = [];
+    for (final t in _transactions) {
+      final day = _formatDay(t['transactionDate']);
+      if (!grouped.containsKey(day)) {
+        grouped[day] = [];
+        order.add(day);
+      }
+      grouped[day]!.add(t);
+    }
+    return order.map((d) => MapEntry(d, grouped[d]!)).toList();
   }
 
   // ─── SİLME DİALOG'U ──────────────────────────────────────
 
   Future<void> _showDeleteDialog(int id, int index) async {
+    final t = AppTokens.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
+        backgroundColor: t.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('İşlemi Sil', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('Bu işlemi silmek istediğinize emin misiniz?',
-            style: TextStyle(color: AppColors.textSecondary)),
+        title: Text('İşlemi Sil', style: TextStyle(color: t.text)),
+        content: Text('Bu işlemi silmek istediğinize emin misiniz?', style: TextStyle(color: t.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('İptal', style: TextStyle(color: t.textTert)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.red,
+              backgroundColor: t.red,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Sil'),
@@ -127,7 +171,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(result['error']),
-              backgroundColor: AppColors.red,
+              backgroundColor: t.red,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -142,7 +186,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('İşlem silindi.'),
-            backgroundColor: AppColors.red,
+            backgroundColor: t.red,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -154,6 +198,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   // ─── DÜZENLEME BOTTOM SHEET ───────────────────────────────
 
   void _showEditDialog(dynamic t) {
+    final tk = AppTokens.of(context);
     final amountCtrl = TextEditingController(text: (t['amount'] ?? 0).toString());
     final descCtrl = TextEditingController(text: t['description'] ?? '');
     int selectedType = t['type'] ?? 2;
@@ -163,7 +208,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.cardBg,
+      backgroundColor: tk.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -175,24 +220,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Sürükleme çubuğu
                 Center(
                   child: Container(
                     width: 40, height: 4,
-                    decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(color: tk.textTert, borderRadius: BorderRadius.circular(2)),
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text('İşlemi Düzenle',
-                    style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
+                Text('İşlemi Düzenle', style: jakarta(fontSize: 20, fontWeight: FontWeight.w700, color: tk.text)),
                 const SizedBox(height: 20),
 
                 // Gelir / Gider toggle
                 Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: tk.inputBg, borderRadius: BorderRadius.circular(12)),
                   child: Row(
                     children: [
                       Expanded(
@@ -201,18 +241,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: selectedType == 1 ? AppColors.green.withValues(alpha: 0.2) : Colors.transparent,
+                              color: selectedType == 1 ? tk.greenSoft : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
-                              border: selectedType == 1 ? Border.all(color: AppColors.green, width: 1.5) : null,
+                              border: selectedType == 1 ? Border.all(color: tk.green, width: 1.5) : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.arrow_downward_rounded,
-                                    color: selectedType == 1 ? AppColors.green : AppColors.textMuted, size: 20),
+                                Icon(LucideIcons.arrowDownLeft, color: selectedType == 1 ? tk.green : tk.textTert, size: 20),
                                 const SizedBox(width: 8),
                                 Text('Gelir', style: TextStyle(
-                                  color: selectedType == 1 ? AppColors.green : AppColors.textMuted,
+                                  color: selectedType == 1 ? tk.green : tk.textTert,
                                   fontWeight: FontWeight.w600,
                                 )),
                               ],
@@ -226,18 +265,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: selectedType == 2 ? AppColors.red.withValues(alpha: 0.2) : Colors.transparent,
+                              color: selectedType == 2 ? tk.redSoft : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
-                              border: selectedType == 2 ? Border.all(color: AppColors.red, width: 1.5) : null,
+                              border: selectedType == 2 ? Border.all(color: tk.red, width: 1.5) : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.arrow_upward_rounded,
-                                    color: selectedType == 2 ? AppColors.red : AppColors.textMuted, size: 20),
+                                Icon(LucideIcons.arrowUpRight, color: selectedType == 2 ? tk.red : tk.textTert, size: 20),
                                 const SizedBox(width: 8),
                                 Text('Gider', style: TextStyle(
-                                  color: selectedType == 2 ? AppColors.red : AppColors.textMuted,
+                                  color: selectedType == 2 ? tk.red : tk.textTert,
                                   fontWeight: FontWeight.w600,
                                 )),
                               ],
@@ -250,38 +288,35 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Tutar
-                const Text('Tutar', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Tutar', style: TextStyle(color: tk.textSec, fontSize: 13)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: amountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: tk.text, fontSize: 20, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
                     hintText: '0.00',
                     prefixIcon: Padding(
-                      padding: EdgeInsets.only(left: 16, top: 8, bottom: 8),
-                      child: Text('₺', style: TextStyle(color: AppColors.accent, fontSize: 20, fontWeight: FontWeight.bold)),
+                      padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+                      child: Text('₺', style: TextStyle(color: tk.brand, fontSize: 20, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Açıklama
-                const Text('Açıklama', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Açıklama', style: TextStyle(color: tk.textSec, fontSize: 13)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: descCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: tk.text),
+                  decoration: InputDecoration(
                     hintText: 'Açıklama girin',
-                    prefixIcon: Icon(Icons.description_outlined, color: AppColors.textMuted),
+                    prefixIcon: Icon(LucideIcons.fileText, color: tk.textTert, size: 18),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Tarih
-                const Text('Tarih', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Tarih', style: TextStyle(color: tk.textSec, fontSize: 13)),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
@@ -292,7 +327,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       lastDate: DateTime.now(),
                       builder: (context, child) => Theme(
                         data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.cardBg),
+                          colorScheme: ColorScheme.dark(primary: tk.brand, surface: tk.card),
                         ),
                         child: child!,
                       ),
@@ -301,46 +336,39 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBgLight,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    decoration: BoxDecoration(color: tk.inputBg, borderRadius: BorderRadius.circular(12)),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_today_rounded, color: AppColors.textMuted, size: 20),
+                        Icon(LucideIcons.calendar, color: tk.textTert, size: 20),
                         const SizedBox(width: 12),
                         Text(
                           DateFormat('dd MMMM yyyy', 'tr_TR').format(selectedDate),
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+                          style: TextStyle(color: tk.text, fontSize: 15),
                         ),
                         const Spacer(),
-                        const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                        Icon(LucideIcons.chevronRight, color: tk.textTert),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Kategori
-                const Text('Kategori', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Kategori', style: TextStyle(color: tk.textSec, fontSize: 13)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBgLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: tk.inputBg, borderRadius: BorderRadius.circular(12)),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
                       isExpanded: true,
                       value: selectedCategoryId,
-                      hint: const Text('Kategori seçin', style: TextStyle(color: AppColors.textMuted)),
-                      dropdownColor: AppColors.cardBg,
-                      icon: const Icon(Icons.expand_more, color: AppColors.textMuted),
+                      hint: Text('Kategori seçin', style: TextStyle(color: tk.textTert)),
+                      dropdownColor: tk.card,
+                      icon: Icon(LucideIcons.chevronDown, color: tk.textTert),
                       items: _categories.map<DropdownMenuItem<int>>((cat) {
                         return DropdownMenuItem<int>(
                           value: cat['id'],
-                          child: Text(cat['name'] ?? 'Kategori', style: const TextStyle(color: AppColors.textPrimary)),
+                          child: Text(cat['name'] ?? 'Kategori', style: TextStyle(color: tk.text)),
                         );
                       }).toList(),
                       onChanged: (value) => setSheetState(() => selectedCategoryId = value),
@@ -349,7 +377,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // Güncelle butonu
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -359,7 +386,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       if (amount == null || amount <= 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: const Text('Geçerli bir tutar giriniz!'),
-                              backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                              backgroundColor: tk.red, behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         );
                         return;
@@ -367,7 +394,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       if (descCtrl.text.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: const Text('Açıklama giriniz!'),
-                              backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                              backgroundColor: tk.red, behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         );
                         return;
@@ -375,7 +402,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       if (selectedCategoryId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: const Text('Kategori seçiniz!'),
-                              backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
+                              backgroundColor: tk.red, behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         );
                         return;
@@ -394,7 +421,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(result['error']),
-                              backgroundColor: AppColors.red,
+                              backgroundColor: tk.red,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
@@ -411,17 +438,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: const Text('İşlem güncellendi!'),
-                            backgroundColor: AppColors.green,
+                            backgroundColor: tk.green,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         );
                       }
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
                     child: const Text('Güncelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -435,119 +458,178 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final groups = _groupByDay();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('İşlemler')),
-      body: Column(
-        children: [
-          // Filtre chip'leri
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip('Tümü', 0),
-                const SizedBox(width: 10),
-                _buildFilterChip('Gelir', 1),
-                const SizedBox(width: 10),
-                _buildFilterChip('Gider', 2),
-              ],
-            ),
-          ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('İşlemler', style: jakarta(fontSize: 20, fontWeight: FontWeight.w700, color: t.text)),
+              const SizedBox(height: 14),
 
-          // İşlem listesi
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-                : _transactions.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _loadTransactions,
-                        color: AppColors.accent,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _transactions.length,
-                          itemBuilder: (context, index) {
-                            final t = _transactions[index];
-                            return GestureDetector(
-                              onTap: () => _showEditDialog(t),
-                              onLongPress: () => _showDeleteDialog(t['id'], index),
-                              child: TransactionCard(
-                                description: t['description'] ?? '',
-                                amount: (t['amount'] ?? 0).toDouble(),
-                                type: t['type'] ?? 2,
-                                categoryName: _getCategoryName(t),
-                                date: _formatDate(t['transactionDate']),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-          ),
+              // Arama
+              TextField(
+                controller: _searchCtrl,
+                onChanged: _onSearchChanged,
+                style: TextStyle(color: t.text, fontSize: 14.5),
+                decoration: InputDecoration(
+                  hintText: 'Ara...',
+                  prefixIcon: Icon(LucideIcons.search, color: t.textSec, size: 17),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
 
-          // Sayfalama
-          if (!_isLoading && _transactions.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              // Filtre çipleri
+              Row(
                 children: [
-                  IconButton(
-                    onPressed: _currentPage > 1
-                        ? () {
-                            setState(() => _currentPage--);
-                            _loadTransactions();
-                          }
-                        : null,
-                    icon: Icon(
-                      Icons.chevron_left,
-                      color: _currentPage > 1 ? AppColors.textPrimary : AppColors.textMuted,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Sayfa $_currentPage / $_totalPages',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _currentPage < _totalPages
-                        ? () {
-                            setState(() => _currentPage++);
-                            _loadTransactions();
-                          }
-                        : null,
-                    icon: Icon(
-                      Icons.chevron_right,
-                      color: _currentPage < _totalPages ? AppColors.textPrimary : AppColors.textMuted,
-                    ),
-                  ),
+                  _buildFilterChip(t, 'Tümü', 0),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(t, 'Gelir', 1),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(t, 'Gider', 2),
                 ],
               ),
-            ),
-        ],
+              const SizedBox(height: 16),
+
+              Expanded(
+                child: _isLoading
+                    ? Center(child: CircularProgressIndicator(color: t.brand))
+                    : _transactions.isEmpty
+                        ? _buildEmptyState(t)
+                        : RefreshIndicator(
+                            onRefresh: _loadTransactions,
+                            color: t.brand,
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              itemCount: groups.length,
+                              itemBuilder: (context, groupIndex) {
+                                final group = groups[groupIndex];
+                                final net = group.value.fold<double>(0, (sum, tx) {
+                                  final amt = (tx['amount'] ?? 0).toDouble();
+                                  return sum + ((tx['type'] ?? 2) == 1 ? amt : -amt);
+                                });
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(group.key, style: TextStyle(color: t.textSec, fontSize: 13, fontWeight: FontWeight.w600)),
+                                            Text(
+                                              (net >= 0 ? '+' : '') + formatTRY(net),
+                                              style: TextStyle(
+                                                color: net >= 0 ? t.green : t.red,
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: t.card,
+                                          border: Border.all(color: t.border),
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: Column(
+                                          children: [
+                                            for (var i = 0; i < group.value.length; i++)
+                                              GestureDetector(
+                                                onLongPress: () => _showDeleteDialog(
+                                                  group.value[i]['id'],
+                                                  _transactions.indexOf(group.value[i]),
+                                                ),
+                                                child: TransactionCard(
+                                                  description: group.value[i]['description'] ?? '',
+                                                  merchantName: group.value[i]['merchantName'],
+                                                  amount: (group.value[i]['amount'] ?? 0).toDouble(),
+                                                  type: group.value[i]['type'] ?? 2,
+                                                  categoryName: _getCategoryName(group.value[i]),
+                                                  date: '',
+                                                  showDivider: i != group.value.length - 1,
+                                                  onTap: () => _showEditDialog(group.value[i]),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+              ),
+
+              if (!_isLoading && _transactions.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: _currentPage > 1
+                            ? () {
+                                setState(() => _currentPage--);
+                                _loadTransactions();
+                              }
+                            : null,
+                        icon: Icon(LucideIcons.chevronLeft, color: _currentPage > 1 ? t.text : t.textTert),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(color: t.card, border: Border.all(color: t.border), borderRadius: BorderRadius.circular(8)),
+                        child: Text('Sayfa $_currentPage / $_totalPages', style: TextStyle(color: t.textSec, fontSize: 13)),
+                      ),
+                      IconButton(
+                        onPressed: _currentPage < _totalPages
+                            ? () {
+                                setState(() => _currentPage++);
+                                _loadTransactions();
+                              }
+                            : null,
+                        icon: Icon(LucideIcons.chevronRight, color: _currentPage < _totalPages ? t.text : t.textTert),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, int value) {
+  Widget _buildFilterChip(AppTokens t, String label, int value) {
     final isActive = _selectedFilter == value;
     return GestureDetector(
       onTap: () => _onFilterChanged(value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isActive ? AppColors.accent : AppColors.cardBg,
-          borderRadius: BorderRadius.circular(20),
+          color: isActive ? t.brand : t.card,
+          border: Border.all(color: isActive ? t.brand : t.border),
+          borderRadius: BorderRadius.circular(100),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isActive ? Colors.white : AppColors.textSecondary,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            color: isActive ? Colors.white : t.textSec,
+            fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
         ),
@@ -555,22 +637,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppTokens t) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_rounded, size: 64, color: AppColors.textMuted.withValues(alpha: 0.5)),
+          Icon(LucideIcons.receipt, size: 56, color: t.textTert),
           const SizedBox(height: 16),
-          const Text(
-            'Henüz işlem yok',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 18),
-          ),
+          Text('Henüz işlem yok', style: TextStyle(color: t.textSec, fontSize: 18)),
           const SizedBox(height: 8),
-          const Text(
-            'İlk işleminizi eklemek için + butonuna tıklayın',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
+          Text('İlk işleminizi eklemek için + butonuna dokunun', style: TextStyle(color: t.textTert, fontSize: 13)),
         ],
       ),
     );
