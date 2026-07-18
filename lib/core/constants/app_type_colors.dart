@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Yatırım tipi ve kategori vurgu renkleri — temadan bağımsız, sabit.
 /// (design_handoff_smartfinance/README.md → Asset-type / Category accent colors)
@@ -9,6 +10,25 @@ class AppTypeColors {
     'crypto': Color(0xFFF97316),   // Kripto
     'currency': Color(0xFF8B5CF6), // Döviz
     'gold': Color(0xFFEAB308),     // Altın
+  };
+
+  static const Map<String, String> investmentLabel = {
+    'stock': 'Hisse',
+    'fund': 'TEFAS Fon',
+    'crypto': 'Kripto',
+    'currency': 'Döviz',
+    'gold': 'Altın',
+  };
+
+  // Tasarım spec'i sembole özel ikon kullanıyor (THYAO->plane vb.); bizim
+  // uygulamada sembol kullanıcı tarafından serbest girildiği için tip
+  // bazlı genel bir ikon kullanılıyor.
+  static const Map<String, IconData> investmentIcon = {
+    'stock': LucideIcons.trendingUp,
+    'fund': LucideIcons.pieChart,
+    'crypto': LucideIcons.bitcoin,
+    'currency': LucideIcons.dollarSign,
+    'gold': LucideIcons.circleDollarSign,
   };
 
   static const List<Map<String, dynamic>> categoryPresets = [

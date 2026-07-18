@@ -1,5 +1,10 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/constants/app_type_colors.dart';
+import '../core/theme/app_theme.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import 'technical_analysis_screen.dart';
 
@@ -14,23 +19,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   List<Map<String, dynamic>> _investments = [];
   Map<String, dynamic>? _summary;
   bool _isLoading = true;
-
-  // İkon ve renk eşleştirmeleri
-  final Map<String, IconData> _typeIcons = {
-    'stock': Icons.show_chart_rounded,
-    'gold': Icons.diamond_rounded,
-    'currency': Icons.attach_money_rounded,
-    'crypto': Icons.currency_bitcoin_rounded,
-    'fund': Icons.pie_chart_rounded,
-  };
-
-  final Map<String, Color> _typeColors = {
-    'stock': AppColors.cyan,
-    'gold': AppColors.orange,
-    'currency': AppColors.violet,
-    'crypto': const Color(0xFFF7931A),
-    'fund': AppColors.green,
-  };
 
   @override
   void initState() {
@@ -58,12 +46,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             }
             _isLoading = false;
           });
+          final t = AppTokens.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Fiyatlar güncellenemedi, önceki değerler gösteriliyor.'),
-              backgroundColor: AppColors.orange,
+            SnackBar(
+              content: const Text('Fiyatlar güncellenemedi, önceki değerler gösteriliyor.'),
+              backgroundColor: t.amber,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
             ),
           );
         }
@@ -89,6 +78,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   void _showInvestmentDialog({Map<String, dynamic>? investment}) {
+    final t = AppTokens.of(context);
     final isEdit = investment != null;
     final nameCtrl = TextEditingController(text: investment?['name'] ?? '');
     final fullNameCtrl = TextEditingController(text: investment?['fullName'] ?? '');
@@ -102,40 +92,33 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.cardBg,
-          title: Text(isEdit ? 'Yatırımı Düzenle' : 'Yatırım Ekle', style: const TextStyle(color: AppColors.textPrimary)),
+          backgroundColor: t.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(isEdit ? 'Yatırımı Düzenle' : 'Yatırım Ekle', style: TextStyle(color: t.text)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildTextField(nameCtrl, 'Sembol (örn: THYAO)'),
+                _buildTextField(t, nameCtrl, 'Sembol (örn: THYAO)'),
                 const SizedBox(height: 10),
-                _buildTextField(fullNameCtrl, 'Tam Ad (örn: Türk Hava Yolları)'),
+                _buildTextField(t, fullNameCtrl, 'Tam Ad (örn: Türk Hava Yolları)'),
                 const SizedBox(height: 10),
-                _buildTextField(purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
+                _buildTextField(t, purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
                 const SizedBox(height: 10),
-                _buildTextField(quantityCtrl, 'Miktar', isNumber: true),
+                _buildTextField(t, quantityCtrl, 'Miktar', isNumber: true),
                 const SizedBox(height: 14),
-                // Tip seçici
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(10)),
                   child: DropdownButton<String>(
                     value: selectedType,
                     isExpanded: true,
-                    dropdownColor: AppColors.cardBg,
-                    style: const TextStyle(color: AppColors.textPrimary),
+                    dropdownColor: t.card,
+                    style: TextStyle(color: t.text),
                     underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(value: 'stock', child: Text('Hisse Senedi')),
-                      DropdownMenuItem(value: 'gold', child: Text('Altın')),
-                      DropdownMenuItem(value: 'currency', child: Text('Döviz')),
-                      DropdownMenuItem(value: 'crypto', child: Text('Kripto')),
-                      DropdownMenuItem(value: 'fund', child: Text('Fon')),
-                    ],
+                    items: AppTypeColors.investmentLabel.entries
+                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                        .toList(),
                     onChanged: (v) => setDialogState(() => selectedType = v!),
                   ),
                 ),
@@ -145,10 +128,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
+              child: Text('İptal', style: TextStyle(color: t.textTert)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || purchasePriceCtrl.text.isEmpty) return;
                 final body = {
@@ -166,7 +148,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       SnackBar(
                         content: Text(result['error']),
-                        backgroundColor: AppColors.red,
+                        backgroundColor: t.red,
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
@@ -180,14 +162,14 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text(isEdit ? 'Yatırım güncellendi.' : 'Yatırım eklendi.'),
-                      backgroundColor: AppColors.green,
+                      backgroundColor: t.green,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   );
                 }
               },
-              child: Text(isEdit ? 'Güncelle' : 'Ekle', style: const TextStyle(color: Colors.white)),
+              child: Text(isEdit ? 'Güncelle' : 'Ekle'),
             ),
           ],
         ),
@@ -196,20 +178,21 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   void _showDeleteConfirmation(int id, String name) {
+    final t = AppTokens.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        title: const Text('Yatırımı Sil', style: TextStyle(color: AppColors.textPrimary)),
-        content: Text('$name yatırımını silmek istediğinize emin misiniz?',
-            style: const TextStyle(color: AppColors.textSecondary)),
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Yatırımı Sil', style: TextStyle(color: t.text)),
+        content: Text('$name yatırımını silmek istediğinize emin misiniz?', style: TextStyle(color: t.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('İptal', style: TextStyle(color: t.textTert)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: t.red),
             onPressed: () async {
               final result = await ApiService.authenticatedDelete('/investment/$id');
               if (result is Map && result.containsKey('error')) {
@@ -217,7 +200,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text(result['error']),
-                      backgroundColor: AppColors.red,
+                      backgroundColor: t.red,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -231,7 +214,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
                     content: const Text('Yatırım silindi.'),
-                    backgroundColor: AppColors.red,
+                    backgroundColor: t.red,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -245,107 +228,96 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+  Widget _buildTextField(AppTokens t, TextEditingController ctrl, String hint, {bool isNumber = false}) {
     return TextField(
       controller: ctrl,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: const TextStyle(color: AppColors.textPrimary),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textMuted),
-        filled: true,
-        fillColor: AppColors.background,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
-        ),
-      ),
+      style: TextStyle(color: t.text),
+      decoration: InputDecoration(hintText: hint),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+            ? Center(child: CircularProgressIndicator(color: t.brand))
             : RefreshIndicator(
                 onRefresh: _loadData,
-                color: AppColors.accent,
+                color: t.brand,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Başlık + Ekle butonu
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Yatırımlar',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
+                          Text('Yatırımlar', style: jakarta(fontSize: 20, fontWeight: FontWeight.w700, color: t.text)),
+                          GestureDetector(
+                            onTap: () => _showInvestmentDialog(),
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(color: t.brand, borderRadius: BorderRadius.circular(11)),
+                              child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: () => _showInvestmentDialog(),
-                            icon: const Icon(Icons.add_circle_rounded, color: AppColors.accent, size: 30),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
 
-                      const SizedBox(height: 20),
+                      _buildPortfolioCard(t),
 
-                      // Portföy değeri kartı
-                      _buildPortfolioCard(),
-
-                      const SizedBox(height: 24),
-
-                      // Tür bazlı dağılım
                       if (_summary != null && _summary!['byType'] != null && (_summary!['byType'] as List).isNotEmpty) ...[
-                        const Text(
-                          'Tür Dağılımı',
-                          style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w600),
-                        ),
                         const SizedBox(height: 14),
-                        ...((_summary!['byType'] as List).map((t) => _buildTypeCard(t))),
-                        const SizedBox(height: 20),
+                        _buildAllocationCard(t, (_summary!['byType'] as List)),
                       ],
 
-                      // Yatırımlarım başlığı
-                      const Text(
-                        'Yatırımlarım',
-                        style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 20),
+                      Text('Yatırımlarım', style: jakarta(fontSize: 15, fontWeight: FontWeight.w600, color: t.text)),
+                      const SizedBox(height: 10),
 
                       if (_investments.isEmpty)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(40),
                           decoration: BoxDecoration(
-                            color: AppColors.cardBg,
-                            borderRadius: BorderRadius.circular(14),
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             children: [
-                              const Icon(Icons.show_chart_rounded, size: 48, color: AppColors.textMuted),
+                              Icon(LucideIcons.trendingUp, size: 44, color: t.textTert),
                               const SizedBox(height: 12),
-                              const Text('Henüz yatırım yok', style: TextStyle(color: AppColors.textMuted)),
+                              Text('Henüz yatırım yok', style: TextStyle(color: t.textSec)),
                               const SizedBox(height: 8),
                               TextButton(
                                 onPressed: () => _showInvestmentDialog(),
-                                child: const Text('İlk yatırımını ekle', style: TextStyle(color: AppColors.accent)),
+                                child: Text('İlk yatırımını ekle', style: TextStyle(color: t.brand)),
                               ),
                             ],
                           ),
                         )
                       else
-                        ..._investments.map((inv) => _buildInvestmentCard(inv)),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < _investments.length; i++)
+                                _buildInvestmentRow(t, _investments[i], i != _investments.length - 1),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -354,7 +326,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildPortfolioCard() {
+  Widget _buildPortfolioCard(AppTokens t) {
     final totalCurrent = (_summary?['totalCurrentValue'] ?? 0).toDouble();
     final totalProfitLoss = (_summary?['totalProfitLoss'] ?? 0).toDouble();
     final profitPercent = (_summary?['totalProfitLossPercentage'] ?? 0).toDouble();
@@ -364,88 +336,32 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.circular(18),
+        color: t.card,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Toplam Portföy', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 8),
+          Text('Toplam Portföy', style: TextStyle(color: t.textSec, fontSize: 13)),
+          const SizedBox(height: 6),
           Text(
-            '₺${totalCurrent.toStringAsFixed(2)}',
-            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+            formatTRY(totalCurrent),
+            style: jakarta(fontSize: 30, fontWeight: FontWeight.w600, color: t.text),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isPositive ? Colors.white.withOpacity(0.2) : AppColors.red.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                  color: Colors.white, size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${isPositive ? '+' : ''}₺${totalProfitLoss.toStringAsFixed(2)} (${profitPercent.toStringAsFixed(2)}%)',
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeCard(dynamic typeData) {
-    final type = typeData['investmentType'] ?? '';
-    final currentValue = (typeData['totalCurrentValue'] ?? 0).toDouble();
-    final profitLoss = (typeData['profitLoss'] ?? 0).toDouble();
-    final count = typeData['count'] ?? 0;
-    final isPositive = profitLoss >= 0;
-
-    final labels = {'stock': 'Hisse', 'gold': 'Altın', 'currency': 'Döviz', 'crypto': 'Kripto', 'fund': 'Fon'};
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: (_typeColors[type] ?? AppColors.accent).withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(_typeIcons[type] ?? Icons.help, color: _typeColors[type] ?? AppColors.accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(labels[type] ?? type, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                Text('$count adet', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text('₺${currentValue.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+              Icon(
+                isPositive ? LucideIcons.arrowUpRight : LucideIcons.arrowDownRight,
+                color: isPositive ? t.green : t.red,
+                size: 15,
+              ),
+              const SizedBox(width: 4),
               Text(
-                '${isPositive ? '+' : ''}₺${profitLoss.toStringAsFixed(2)}',
-                style: TextStyle(color: isPositive ? AppColors.green : AppColors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                '${isPositive ? '+' : ''}${formatTRY(totalProfitLoss)} (${profitPercent.toStringAsFixed(2)}%)',
+                style: TextStyle(color: isPositive ? t.green : t.red, fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -454,83 +370,199 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildInvestmentCard(Map<String, dynamic> inv) {
+  Widget _buildAllocationCard(AppTokens t, List byType) {
+    final total = byType.fold<double>(0, (s, e) => s + (e['totalCurrentValue'] ?? 0).toDouble());
+    final segments = byType.map((e) {
+      final type = e['investmentType'] ?? '';
+      final double value = (e['totalCurrentValue'] ?? 0).toDouble();
+      final color = AppTypeColors.investmentType[type] ?? t.brand;
+      final double fraction = total == 0 ? 0.0 : value / total;
+      return MapEntry<Color, double>(color, fraction);
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: t.card,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Tür Dağılımı', style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 104,
+                height: 104,
+                child: CustomPaint(painter: _DonutPainter(segments: segments, holeColor: t.card)),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: byType.map((e) {
+                    final type = e['investmentType'] ?? '';
+                    final value = (e['totalCurrentValue'] ?? 0).toDouble();
+                    final pct = total == 0 ? 0 : (value / total * 100);
+                    final color = AppTypeColors.investmentType[type] ?? t.brand;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: Row(
+                        children: [
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              AppTypeColors.investmentLabel[type] ?? type,
+                              style: TextStyle(color: t.text, fontSize: 12.5),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text('${pct.toStringAsFixed(0)}%', style: TextStyle(color: t.textSec, fontSize: 12)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestmentRow(AppTokens t, Map<String, dynamic> inv, bool showDivider) {
     final purchasePrice = (inv['purchasePrice'] ?? 0).toDouble();
     final currentPrice = (inv['currentPrice'] ?? 0).toDouble();
     final quantity = (inv['quantity'] ?? 0).toDouble();
+    final value = currentPrice * quantity;
     final profitLoss = (currentPrice - purchasePrice) * quantity;
     final profitPercent = purchasePrice == 0 ? 0.0 : ((currentPrice - purchasePrice) / purchasePrice) * 100;
     final isPositive = profitLoss >= 0;
     final type = inv['investmentType'] ?? '';
+    final color = AppTypeColors.investmentType[type] ?? t.brand;
+    final icon = AppTypeColors.investmentIcon[type] ?? LucideIcons.circleDollarSign;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: () => _showInvestmentDialog(investment: inv),
-      onLongPress: () => _showDeleteConfirmation(inv['id'], inv['name'] ?? ''),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(14),
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TechnicalAnalysisScreen(investmentId: inv['id'], name: inv['name'] ?? ''),
         ),
+      ).then((_) => _loadData()),
+      onLongPress: () => _showInvestmentActions(inv),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null),
         child: Row(
           children: [
-            // İkon
             Container(
-              width: 46, height: 46,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: (_typeColors[type] ?? AppColors.accent).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withValues(alpha: isDark ? 0.22 : 0.13),
+                borderRadius: BorderRadius.circular(11),
               ),
-              child: Icon(_typeIcons[type] ?? Icons.show_chart, color: _typeColors[type] ?? AppColors.accent, size: 22),
+              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(width: 14),
-
-            // İsim
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(inv['name'] ?? '', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(inv['name'] ?? '', style: TextStyle(color: t.text, fontWeight: FontWeight.w600, fontSize: 14.5)),
                   const SizedBox(height: 2),
-                  Text(inv['fullName'] ?? '', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                  const SizedBox(height: 4),
-                  Text('${quantity.toStringAsFixed(2)} adet × ₺${purchasePrice.toStringAsFixed(2)}',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                  Text(
+                    '${quantity.toStringAsFixed(2)} adet × ${formatTRY(purchasePrice)}',
+                    style: TextStyle(color: t.textSec, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-
-            // Fiyat + kar/zarar
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('₺${currentPrice.toStringAsFixed(2)}',
-                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(formatTRY(value), style: TextStyle(color: t.text, fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 2),
-                Text('${isPositive ? '+' : ''}${profitPercent.toStringAsFixed(2)}%',
-                    style: TextStyle(color: isPositive ? AppColors.green : AppColors.red, fontSize: 12, fontWeight: FontWeight.w600)),
-                Text('${isPositive ? '+' : ''}₺${profitLoss.toStringAsFixed(2)}',
-                    style: TextStyle(color: isPositive ? AppColors.green : AppColors.red, fontSize: 10)),
-              ],
-            ),
-
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TechnicalAnalysisScreen(
-                    investmentId: inv['id'],
-                    name: inv['name'] ?? '',
-                  ),
+                Text(
+                  '${isPositive ? '+' : ''}${formatTRY(profitLoss)} (${profitPercent.toStringAsFixed(1)}%)',
+                  style: TextStyle(color: isPositive ? t.green : t.red, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
-              ),
-              icon: const Icon(Icons.query_stats_rounded, color: AppColors.textMuted, size: 22),
-              tooltip: 'Teknik Analiz',
+              ],
             ),
           ],
         ),
       ),
     );
   }
+
+  void _showInvestmentActions(Map<String, dynamic> inv) {
+    final t = AppTokens.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(LucideIcons.pencil, color: t.text),
+              title: Text('Düzenle', style: TextStyle(color: t.text)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showInvestmentDialog(investment: inv);
+              },
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.trash2, color: t.red),
+              title: Text('Sil', style: TextStyle(color: t.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showDeleteConfirmation(inv['id'], inv['name'] ?? '');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  final List<MapEntry<Color, double>> segments;
+  final Color holeColor;
+  static const _strokeWidth = 16.0;
+
+  _DonutPainter({required this.segments, required this.holeColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.width - _strokeWidth) / 2;
+    var startAngle = -pi / 2;
+    for (final seg in segments) {
+      if (seg.value <= 0) continue;
+      final sweep = seg.value * 2 * pi;
+      final paint = Paint()
+        ..color = seg.key
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _strokeWidth;
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweep, false, paint);
+      startAngle += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) =>
+      oldDelegate.segments != segments || oldDelegate.holeColor != holeColor;
 }
