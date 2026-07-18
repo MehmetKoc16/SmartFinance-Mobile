@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../core/theme/app_theme.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/theme/theme_controller.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 
@@ -18,6 +24,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _categoryCount = 0;
   String _userName = '';
   String _userEmail = '';
+  bool _notifOn = true;
+
+  static const _notifPrefsKey = 'notifications_enabled';
 
   String get _initials {
     final parts = _userName.trim().split(' ');
@@ -35,20 +44,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfileData() async {
     try {
       final now = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
 
-      // Kullanıcı bilgisi
       final me = await ApiService.authenticatedGet('/auth/me');
       if (me is Map) {
-        _userName  = me['fullName'] ?? '';
-        _userEmail = me['email']   ?? '';
+        _userName = me['fullName'] ?? '';
+        _userEmail = me['email'] ?? '';
       }
 
-      // Aylık özet
       final summary = await ApiService.authenticatedGet(
         '/transaction/summary/${now.year}/${now.month}',
       );
 
-      // Kategoriler
       final categories = await ApiService.authenticatedGet('/category');
 
       if (mounted) {
@@ -57,6 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _totalExpense = (summary['totalExpense'] ?? 0).toDouble();
           _transactionCount = summary['transactionCount'] ?? 0;
           _categoryCount = categories is List ? categories.length : 0;
+          _notifOn = prefs.getBool(_notifPrefsKey) ?? true;
           _isLoading = false;
         });
       }
@@ -65,41 +73,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _toggleNotif() async {
+    setState(() => _notifOn = !_notifOn);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notifPrefsKey, _notifOn);
+  }
+
   Future<void> _logout() async {
     await ApiService.removeToken();
     if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     }
   }
 
   void _showLogoutConfirmation() {
+    final t = AppTokens.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
+        backgroundColor: t.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Çıkış Yap', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text(
-          'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
+        title: Text('Çıkış Yap', style: TextStyle(color: t.text)),
+        content: Text('Hesabınızdan çıkış yapmak istediğinize emin misiniz?', style: TextStyle(color: t.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('İptal', style: TextStyle(color: t.textTert)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _logout();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: t.red),
             child: const Text('Çıkış Yap'),
           ),
         ],
@@ -109,144 +115,167 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ─── ŞİFRE DEĞİŞTİRME ───────────────────────────────────
 
+  int _strengthScore(String pw) {
+    final len = pw.length;
+    final variety = [RegExp(r'[a-z]'), RegExp(r'[A-Z]'), RegExp(r'[0-9]'), RegExp(r'[^a-zA-Z0-9]')]
+        .where((r) => r.hasMatch(pw))
+        .length;
+    final score = (len / 3 * 0.5).floor() + variety;
+    return score.clamp(0, 4);
+  }
+
   void _showChangePasswordSheet() {
+    final t = AppTokens.of(context);
     final currentCtrl = TextEditingController();
-    final newCtrl     = TextEditingController();
+    final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     bool isSubmitting = false;
+    int strength = 0;
+
+    const strengthColors = ['red', 'red', 'amber', 'green', 'green'];
+    const strengthLabels = ['Çok zayıf', 'Zayıf', 'Orta', 'Güçlü', 'Çok güçlü'];
+    Color colorFor(String key, AppTokens t) => key == 'red' ? t.red : (key == 'amber' ? t.amber : t.green);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.cardBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24,
-              MediaQuery.of(ctx).viewInsets.bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Sürükleme çubuğu
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text('Şifre Değiştir',
-                  style: TextStyle(color: AppColors.textPrimary,
-                      fontSize: 20, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 20),
-
-              // Mevcut Şifre
-              TextField(
-                controller: currentCtrl,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Mevcut şifre',
-                  prefixIcon: Icon(Icons.lock_outline, color: AppColors.textMuted),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Yeni Şifre
-              TextField(
-                controller: newCtrl,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Yeni şifre (min 6 karakter)',
-                  prefixIcon: Icon(Icons.lock_rounded, color: AppColors.textMuted),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Yeni Şifre Tekrar
-              TextField(
-                controller: confirmCtrl,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Yeni şifre (tekrar)',
-                  prefixIcon: Icon(Icons.lock_rounded, color: AppColors.textMuted),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Kaydet butonu
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
                   ),
-                  onPressed: isSubmitting ? null : () async {
-                    // Validation
-                    if (currentCtrl.text.isEmpty || newCtrl.text.isEmpty || confirmCtrl.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: const Text('Tüm alanları doldurunuz!'),
-                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                      );
-                      return;
-                    }
-                    if (newCtrl.text.length < 6) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: const Text('Yeni şifre en az 6 karakter olmalıdır!'),
-                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                      );
-                      return;
-                    }
-                    if (newCtrl.text != confirmCtrl.text) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: const Text('Yeni şifreler eşleşmiyor!'),
-                            backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                      );
-                      return;
-                    }
-
-                    setSheetState(() => isSubmitting = true);
-
-                    final result = await ApiService.authenticatedPut('/auth/change-password', {
-                      'currentPassword': currentCtrl.text,
-                      'newPassword': newCtrl.text,
-                    });
-
-                    setSheetState(() => isSubmitting = false);
-
-                    if (mounted) {
-                      if (result is Map && result.containsKey('error')) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(result['error'] ?? 'Mevcut şifre hatalı!'),
-                              backgroundColor: AppColors.red, behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        );
-                      } else {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: const Text('Şifre başarıyla değiştirildi!'),
-                              backgroundColor: AppColors.green, behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        );
-                      }
-                    }
-                  },
-                  child: isSubmitting
-                      ? const SizedBox(width: 24, height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Şifreyi Değiştir', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                Text('Şifre Değiştir', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: currentCtrl,
+                  obscureText: true,
+                  style: TextStyle(color: t.text),
+                  decoration: InputDecoration(hintText: 'Mevcut şifre', prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18)),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: newCtrl,
+                  obscureText: true,
+                  style: TextStyle(color: t.text),
+                  onChanged: (v) => setSheetState(() => strength = _strengthScore(v)),
+                  decoration: InputDecoration(hintText: 'Yeni şifre', prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: List.generate(4, (i) {
+                    final filled = i < strength;
+                    return Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: filled ? colorFor(strengthColors[strength], t) : t.divider,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                if (newCtrl.text.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(strengthLabels[strength], style: TextStyle(color: colorFor(strengthColors[strength], t), fontSize: 11.5)),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmCtrl,
+                  obscureText: true,
+                  style: TextStyle(color: t.text),
+                  decoration: InputDecoration(hintText: 'Yeni şifre (tekrar)', prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18)),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (currentCtrl.text.isEmpty || newCtrl.text.isEmpty || confirmCtrl.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: const Text('Tüm alanları doldurunuz!'),
+                                    backgroundColor: t.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
+                              return;
+                            }
+                            if (newCtrl.text.length < 6) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: const Text('Yeni şifre en az 6 karakter olmalıdır!'),
+                                    backgroundColor: t.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
+                              return;
+                            }
+                            if (newCtrl.text != confirmCtrl.text) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: const Text('Yeni şifreler eşleşmiyor!'),
+                                    backgroundColor: t.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
+                              return;
+                            }
+
+                            setSheetState(() => isSubmitting = true);
+
+                            final result = await ApiService.authenticatedPut('/auth/change-password', {
+                              'currentPassword': currentCtrl.text,
+                              'newPassword': newCtrl.text,
+                            });
+
+                            setSheetState(() => isSubmitting = false);
+
+                            if (mounted) {
+                              if (result is Map && result.containsKey('error')) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(result['error'] ?? 'Mevcut şifre hatalı!'),
+                                      backgroundColor: t.red,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                                );
+                              } else {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: const Text('Şifre başarıyla değiştirildi!'),
+                                      backgroundColor: t.green,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                                );
+                              }
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Şifreyi Değiştir'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -255,109 +284,146 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final themeController = context.watch<ThemeController>();
+
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+            ? Center(child: CircularProgressIndicator(color: t.brand))
             : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                 child: Column(
                   children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: t.brandSoft, shape: BoxShape.circle),
+                      child: Text(_initials, style: jakarta(fontSize: 26, fontWeight: FontWeight.w700, color: t.brand)),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(_userName.isNotEmpty ? _userName : 'Kullanıcı',
+                        style: jakarta(fontSize: 17, fontWeight: FontWeight.w600, color: t.text)),
+                    const SizedBox(height: 2),
+                    Text(_userEmail, style: TextStyle(color: t.textSec, fontSize: 13)),
+
                     const SizedBox(height: 20),
 
-                    // Avatar
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: const BoxDecoration(
-                        color: AppColors.accent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          _initials,
-                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _userName.isNotEmpty ? _userName : 'Kullanıcı',
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _userEmail.isNotEmpty ? _userEmail : '',
-                      style: const TextStyle(color: AppColors.accent, fontSize: 14),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // İstatistik kartları
                     Row(
                       children: [
-                        Expanded(child: _buildStatCard('İşlemler', '$_transactionCount', Icons.receipt_long_rounded)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildStatCard('Kategoriler', '$_categoryCount', Icons.category_rounded)),
+                        Expanded(child: _statCard(t, 'İşlem Sayısı', '$_transactionCount', t.text)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _statCard(t, 'Kategori Sayısı', '$_categoryCount', t.text)),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Gelir',
-                            '₺${_totalIncome.toStringAsFixed(0)}',
-                            Icons.arrow_downward_rounded,
-                            valueColor: AppColors.green,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Gider',
-                            '₺${_totalExpense.toStringAsFixed(0)}',
-                            Icons.arrow_upward_rounded,
-                            valueColor: AppColors.red,
-                          ),
-                        ),
+                        Expanded(child: _statCard(t, 'Aylık Gelir', formatTRY(_totalIncome, decimals: false), t.green)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _statCard(t, 'Aylık Gider', formatTRY(_totalExpense, decimals: false), t.red)),
                       ],
                     ),
 
-                    const SizedBox(height: 32),
-
-                    // Ayarlar listesi
-                    _buildSettingsTile(Icons.person_rounded, 'Profil Düzenle', () {}),
-                    _buildSettingsTile(Icons.notifications_rounded, 'Bildirimler', () {}),
-                    _buildSettingsTile(Icons.palette_rounded, 'Tema', () {}),
-                    _buildSettingsTile(Icons.lock_rounded, 'Şifre Değiştir', _showChangePasswordSheet),
-                    _buildSettingsTile(Icons.help_outline_rounded, 'Yardım', () {}),
-
                     const SizedBox(height: 16),
 
-                    // Çıkış yap
                     Container(
-                      width: double.infinity,
-                      height: 50,
                       decoration: BoxDecoration(
-                        color: AppColors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
+                        color: t.card,
+                        border: Border.all(color: t.border),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: TextButton.icon(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle', trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(
+                            t,
+                            LucideIcons.bell,
+                            'Bildirimler',
+                            trailing: GestureDetector(
+                              onTap: _toggleNotif,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                width: 42,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: _notifOn ? t.brand : t.inputBg,
+                                  borderRadius: BorderRadius.circular(100),
+                                ),
+                                child: AnimatedAlign(
+                                  duration: const Duration(milliseconds: 150),
+                                  alignment: _notifOn ? Alignment.centerRight : Alignment.centerLeft,
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.divider))),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(LucideIcons.sunMoon, color: t.textSec, size: 18),
+                                    const SizedBox(width: 12),
+                                    Text('Tema', style: TextStyle(color: t.text, fontSize: 14)),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(child: _themeChip(t, 'Açık', ThemeMode.light, themeController)),
+                                    const SizedBox(width: 6),
+                                    Expanded(child: _themeChip(t, 'Koyu', ThemeMode.dark, themeController)),
+                                    const SizedBox(width: 6),
+                                    Expanded(child: _themeChip(t, 'Sistem', ThemeMode.system, themeController)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          _settingsRow(
+                            t,
+                            LucideIcons.lock,
+                            'Şifre Değiştir',
+                            onTap: _showChangePasswordSheet,
+                            trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
+                          ),
+                          _settingsRow(t, LucideIcons.circleHelp, 'Yardım',
+                              trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18), showDivider: false),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
                         onPressed: _showLogoutConfirmation,
-                        icon: const Icon(Icons.logout, color: AppColors.red),
-                        label: const Text('Çıkış Yap', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: t.redSoft,
+                          foregroundColor: t.red,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: t.redSoft)),
+                        ),
+                        icon: Icon(LucideIcons.logOut, color: t.red, size: 18),
+                        label: Text('Çıkış Yap', style: TextStyle(color: t.red, fontWeight: FontWeight.w600)),
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-
-                    // Versiyon
-                    const Text(
-                      'SmartFinance v1.0.0',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                    ),
+                    const SizedBox(height: 20),
+                    Text('SmartFinance v1.0.0', style: TextStyle(color: t.textTert, fontSize: 12)),
                   ],
                 ),
               ),
@@ -365,46 +431,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, {Color? valueColor}) {
+  Widget _statCard(AppTokens t, String label, String value, Color valueColor) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
+        color: t.card,
+        border: Border.all(color: t.border),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.textMuted, size: 20),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor ?? AppColors.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(label, style: TextStyle(color: t.textSec, fontSize: 11.5)),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(color: valueColor, fontSize: 16, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, VoidCallback onTap) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
+  Widget _themeChip(AppTokens t, String label, ThemeMode mode, ThemeController controller) {
+    final isSelected = controller.mode == mode;
+    return GestureDetector(
+      onTap: () => controller.setMode(mode),
+      child: Container(
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? t.brand : t.inputBg,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : t.textSec, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: AppColors.textSecondary),
-        title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 15)),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        onTap: onTap,
+    );
+  }
+
+  Widget _settingsRow(AppTokens t, IconData icon, String title, {VoidCallback? onTap, Widget? trailing, bool showDivider = true}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null),
+        child: Row(
+          children: [
+            Icon(icon, color: t.textSec, size: 18),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title, style: TextStyle(color: t.text, fontSize: 14))),
+            if (trailing != null) trailing,
+          ],
+        ),
       ),
     );
   }
