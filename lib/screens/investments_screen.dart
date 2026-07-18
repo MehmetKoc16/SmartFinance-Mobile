@@ -453,7 +453,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => TechnicalAnalysisScreen(investmentId: inv['id'], name: inv['name'] ?? ''),
+          builder: (_) => TechnicalAnalysisScreen(investmentId: inv['id'], name: inv['name'] ?? '', investment: inv),
         ),
       ).then((_) => _loadData()),
       onLongPress: () => _showInvestmentActions(inv),
