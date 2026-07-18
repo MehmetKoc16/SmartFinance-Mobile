@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'core/constants/app_colors.dart';
+import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_tokens.dart';
+import 'core/theme/theme_controller.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/api_service.dart';
@@ -9,7 +11,12 @@ import 'services/api_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr_TR', null);
-  runApp(const SmartFinanceApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeController(),
+      child: const SmartFinanceApp(),
+    ),
+  );
 }
 
 class SmartFinanceApp extends StatelessWidget {
@@ -17,10 +24,13 @@ class SmartFinanceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
     return MaterialApp(
       title: 'SmartFinance',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeController.mode,
       navigatorKey: ApiService.navigatorKey,
       home: const SplashScreen(),
       routes: {
@@ -61,26 +71,23 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
+            Text(
               'SmartFinance',
-              style: TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.w800,
-                color: AppColors.accent,
-              ),
+              style: jakarta(fontSize: 40, fontWeight: FontWeight.w800, color: t.brand),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Finansal özgürlüğün başlangıcı',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              style: TextStyle(color: t.textSec, fontSize: 16),
             ),
             const SizedBox(height: 40),
-            const CircularProgressIndicator(color: AppColors.accent),
+            CircularProgressIndicator(color: t.brand),
           ],
         ),
       ),

@@ -1,0 +1,26 @@
+import 'package:flutter/material.dart';
+
+/// Yatırım tipi ve kategori vurgu renkleri — temadan bağımsız, sabit.
+/// (design_handoff_smartfinance/README.md → Asset-type / Category accent colors)
+class AppTypeColors {
+  static const Map<String, Color> investmentType = {
+    'stock': Color(0xFF3B82F6),    // Hisse
+    'fund': Color(0xFF14B8A6),     // TEFAS Fon
+    'crypto': Color(0xFFF97316),   // Kripto
+    'currency': Color(0xFF8B5CF6), // Döviz
+    'gold': Color(0xFFEAB308),     // Altın
+  };
+
+  static const List<Map<String, dynamic>> categoryPresets = [
+    {'icon': Icons.restaurant_rounded, 'color': Color(0xFFF43F5E)},   // Yeme-İçme
+    {'icon': Icons.shopping_cart_rounded, 'color': Color(0xFF8B5CF6)}, // Market
+    {'icon': Icons.directions_bus_rounded, 'color': Color(0xFF14B8A6)}, // Ulaşım
+    {'icon': Icons.receipt_rounded, 'color': Color(0xFF06B6D4)},      // Faturalar
+    {'icon': Icons.card_giftcard_rounded, 'color': Color(0xFFEC4899)}, // Eğlence
+    {'icon': Icons.home_rounded, 'color': Color(0xFFF97316)},         // Kira
+    {'icon': Icons.health_and_safety_rounded, 'color': Color(0xFF84CC16)}, // Sağlık
+    {'icon': Icons.attach_money_rounded, 'color': Color(0xFF159A5B)}, // Maaş
+    {'icon': Icons.school_rounded, 'color': Color(0xFF3B82F6)},
+    {'icon': Icons.sports_esports_rounded, 'color': Color(0xFF64748B)}, // Diğer
+  ];
+}

@@ -1,97 +1,101 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/app_colors.dart';
+import 'app_tokens.dart';
+
+/// Plus Jakarta Sans — başlıklar ve büyük rakamlar için (bkz. design_handoff_smartfinance).
+/// Gövde metni Inter (tema textTheme'i üzerinden), bu yalnızca vurgulu yerlerde kullanılır.
+TextStyle jakarta({
+  required double fontSize,
+  FontWeight fontWeight = FontWeight.w600,
+  Color? color,
+  double? letterSpacing,
+}) =>
+    GoogleFonts.plusJakartaSans(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      letterSpacing: letterSpacing,
+    );
 
 class AppTheme {
-  static ThemeData get darkTheme {
-    return ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.background,
+  static ThemeData _build(AppTokens t, Brightness brightness) {
+    final base = GoogleFonts.interTextTheme(
+      brightness == Brightness.dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
+    );
 
-      // Renk şeması
-      colorScheme: const ColorScheme.dark(
-        primary: AppColors.accent,
-        secondary: AppColors.accent,
-        surface: AppColors.cardBg,
-        error: AppColors.red,
+    return ThemeData(
+      brightness: brightness,
+      scaffoldBackgroundColor: t.bg,
+      extensions: [t],
+
+      colorScheme: (brightness == Brightness.dark
+              ? const ColorScheme.dark()
+              : const ColorScheme.light())
+          .copyWith(
+        primary: t.brand,
+        secondary: t.brand,
+        surface: t.card,
+        error: t.red,
       ),
 
-      // AppBar
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.nunito(
-          color: AppColors.textPrimary,
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-        ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        titleTextStyle: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text),
+        iconTheme: IconThemeData(color: t.text),
       ),
 
-      // Metin teması — kalın/yuvarlak hatlı Nunito, önceki varsayılan Inter'ın yerine
-      textTheme: GoogleFonts.nunitoTextTheme(
-        const TextTheme(
-          headlineLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
-          headlineMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
-          bodyLarge: TextStyle(color: AppColors.textPrimary),
-          bodyMedium: TextStyle(color: AppColors.textSecondary),
-          bodySmall: TextStyle(color: AppColors.textMuted),
-        ),
-      ),
+      textTheme: base.apply(bodyColor: t.text, displayColor: t.text),
 
-      // Kart teması — düz/solid, ince kenarlık (cam/gölge efekti yok)
       cardTheme: CardThemeData(
-        color: AppColors.cardBg,
+        color: t.card,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.hairline, width: 1),
+          side: BorderSide(color: t.border, width: 1),
         ),
       ),
 
-      // Input teması
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.cardBgLight,
+        fillColor: t.inputBg,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: t.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: t.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: t.brand, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: AppColors.textMuted),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        hintStyle: TextStyle(color: t.textTert),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
 
-      // Buton teması
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.accent,
+          backgroundColor: t.brand,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.nunito(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600),
         ),
       ),
 
-      // BottomNav teması
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.cardBg,
-        selectedItemColor: AppColors.accent,
-        unselectedItemColor: AppColors.textMuted,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: t.card,
+        selectedItemColor: t.brand,
+        unselectedItemColor: t.textTert,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
     );
   }
+
+  static ThemeData get light => _build(AppTokens.light, Brightness.light);
+  static ThemeData get dark => _build(AppTokens.dark, Brightness.dark);
 }
