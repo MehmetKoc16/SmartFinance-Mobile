@@ -24,7 +24,7 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _pages = [
-      DashboardScreen(key: UniqueKey()),
+      DashboardScreen(key: UniqueKey(), onSeeAllTransactions: () => setState(() => _currentIndex = 3)),
       const InvestmentsScreen(),
       const SizedBox(),
       TransactionsScreen(key: UniqueKey()),
@@ -34,7 +34,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _refreshPages() {
     setState(() {
-      _pages[0] = DashboardScreen(key: UniqueKey());
+      _pages[0] = DashboardScreen(key: UniqueKey(), onSeeAllTransactions: () => setState(() => _currentIndex = 3));
       _pages[3] = TransactionsScreen(key: UniqueKey());
     });
   }

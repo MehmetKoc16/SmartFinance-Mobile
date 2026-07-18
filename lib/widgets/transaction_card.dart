@@ -1,103 +1,112 @@
 import 'package:flutter/material.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/constants/category_style.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 
 class TransactionCard extends StatelessWidget {
   final String description;
+  final String? merchantName;
   final double amount;
   final int type; // 1 = Gelir, 2 = Gider
   final String categoryName;
   final String date;
-  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool showDivider;
 
   const TransactionCard({
     super.key,
     required this.description,
+    this.merchantName,
     required this.amount,
     required this.type,
     required this.categoryName,
     required this.date,
-    this.icon,
+    this.onTap,
+    this.showDivider = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isIncome = type == 1;
-    final color = isIncome ? AppColors.green : AppColors.red;
-    final prefix = isIncome ? '+' : '-';
-    final displayIcon = icon ?? (isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded);
+    final hasCategory = categoryName.isNotEmpty;
+    final style = hasCategory ? CategoryStyles.of(categoryName) : null;
+    final badgeColor = style?.color ?? t.textTert;
+    final badgeBg = style != null
+        ? style.color.withValues(alpha: isDark ? 0.22 : 0.13)
+        : t.inputBg;
+    final title = (merchantName != null && merchantName!.trim().isNotEmpty)
+        ? merchantName!.trim()
+        : description;
+    final amountColor = isIncome ? t.green : t.red;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.hairline),
-      ),
-      child: Row(
-        children: [
-          // Kategori ikonu
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(11)),
+              child: Icon(style?.icon ?? LucideIcons.helpCircle, color: badgeColor, size: 18),
             ),
-            child: Icon(displayIcon, color: color, size: 19),
-          ),
-          const SizedBox(width: 12),
-
-          // Açıklama + kategori
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title.isEmpty ? 'İsimsiz İşlem' : title,
+                    style: TextStyle(color: t.text, fontSize: 14.5, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  if (hasCategory)
+                    Text(
+                      '$categoryName · $date',
+                      style: TextStyle(color: t.textSec, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(100)),
+                        child: Text('Kategori seç', style: TextStyle(color: t.textTert, fontSize: 11.5)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  description,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Icon(
+                  isIncome ? LucideIcons.arrowDownLeft : LucideIcons.arrowUpRight,
+                  color: amountColor,
+                  size: 13,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(width: 3),
                 Text(
-                  categoryName,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 11,
-                  ),
+                  formatTRY(amount),
+                  style: TextStyle(color: amountColor, fontWeight: FontWeight.w600, fontSize: 14.5),
                 ),
               ],
             ),
-          ),
-
-          // Tutar + tarih
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$prefix₺${amount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                date,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 10.5,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

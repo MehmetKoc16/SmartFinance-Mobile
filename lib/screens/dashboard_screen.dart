@@ -1,11 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/constants/category_style.dart';
+import '../core/theme/app_theme.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../widgets/transaction_card.dart';
 
+class _CategorySpend {
+  final String name;
+  final Color color;
+  final IconData icon;
+  final double amount;
+  final double pct;
+  const _CategorySpend({
+    required this.name,
+    required this.color,
+    required this.icon,
+    required this.amount,
+    required this.pct,
+  });
+}
+
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onSeeAllTransactions;
+  const DashboardScreen({super.key, this.onSeeAllTransactions});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -14,13 +34,13 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   double _totalIncome = 0;
   double _totalExpense = 0;
-  double _balance = 0;
-  int _transactionCount = 0;
+  double? _balanceChangePct;
   List<dynamic> _recentTransactions = [];
+  List<_CategorySpend> _topSpendCats = [];
   Map<int, String> _categoryMap = {};
+  String _userName = '';
   bool _isLoading = true;
 
-  // Ay seçici
   late int _selectedYear;
   late int _selectedMonth;
 
@@ -52,37 +72,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return _selectedYear == now.year && _selectedMonth == now.month;
   }
 
+  String get _initials {
+    final parts = _userName.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    return 'SF';
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 6) return 'İyi geceler,';
+    if (hour < 12) return 'Günaydın,';
+    if (hour < 18) return 'İyi günler,';
+    return 'İyi akşamlar,';
+  }
+
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
 
     try {
-      // Kategorileri çek (isim eşleştirme için)
-      final categories = await ApiService.authenticatedGet('/category');
+      final monthStart = DateTime(_selectedYear, _selectedMonth, 1);
+      final monthEnd = DateTime(_selectedYear, _selectedMonth + 1, 1).subtract(const Duration(seconds: 1));
+      final prevMonth = _selectedMonth == 1 ? 12 : _selectedMonth - 1;
+      final prevYear = _selectedMonth == 1 ? _selectedYear - 1 : _selectedYear;
+
+      final results = await Future.wait([
+        ApiService.authenticatedGet('/auth/me'),
+        ApiService.authenticatedGet('/category'),
+        ApiService.authenticatedGet('/transaction/summary/$_selectedYear/$_selectedMonth'),
+        ApiService.authenticatedGet('/transaction/summary/$prevYear/$prevMonth'),
+        ApiService.authenticatedGet('/transaction/filter?page=1&pageSize=5'),
+        ApiService.authenticatedGet(
+          '/transaction/filter?page=1&pageSize=100&type=2'
+          '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
+        ),
+      ]);
+
+      final me = results[0];
+      final categories = results[1];
+      final summary = results[2] as Map;
+      final prevSummary = results[3] as Map;
+      final recent = results[4] as Map;
+      final monthExpenses = results[5] as Map;
+
       if (categories is List) {
         _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
       }
 
-      // Seçilen ayın özeti
-      final summary = await ApiService.authenticatedGet(
-        '/transaction/summary/$_selectedYear/$_selectedMonth',
-      );
+      final income = (summary['totalIncome'] ?? 0).toDouble();
+      final expense = (summary['totalExpense'] ?? 0).toDouble();
+      final net = income - expense;
 
-      double income = (summary['totalIncome'] ?? 0).toDouble();
-      double expense = (summary['totalExpense'] ?? 0).toDouble();
-      int count = summary['transactionCount'] ?? 0;
+      final prevIncome = (prevSummary['totalIncome'] ?? 0).toDouble();
+      final prevExpense = (prevSummary['totalExpense'] ?? 0).toDouble();
+      final prevNet = prevIncome - prevExpense;
+      final changePct = prevNet == 0 ? null : ((net - prevNet) / prevNet.abs()) * 100;
 
-      // Son işlemler (her zaman en son eklenenler)
-      final transactions = await ApiService.authenticatedGet(
-        '/transaction/filter?page=1&pageSize=5',
-      );
+      // Kategoriye göre harcama: backend PageSize sınırı 100 — bir ayda 100'den
+      // fazla gider işlemi olursa kırılım eksik hesaplanır. Bilgilendirme amaçlı
+      // bir bileşen olduğundan bu kabul edilebilir bir sınırlama.
+      final Map<int, double> spendByCategory = {};
+      for (final t in (monthExpenses['items'] ?? [])) {
+        final catId = t['categoryId'];
+        if (catId == null) continue;
+        final amt = (t['amount'] ?? 0).toDouble();
+        spendByCategory[catId as int] = (spendByCategory[catId] ?? 0) + amt;
+      }
+      final sortedCats = spendByCategory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      final top4 = sortedCats.take(4).toList();
+      final maxSpend = top4.isNotEmpty ? top4.first.value : 1.0;
+      final topSpendCats = top4.map((e) {
+        final name = _categoryMap[e.key] ?? 'Kategori';
+        final style = CategoryStyles.of(name);
+        return _CategorySpend(
+          name: name,
+          color: style.color,
+          icon: style.icon,
+          amount: e.value,
+          pct: maxSpend == 0 ? 0 : (e.value / maxSpend * 100),
+        );
+      }).toList();
 
       if (mounted) {
         setState(() {
+          _userName = me is Map ? (me['fullName'] ?? '') : '';
           _totalIncome = income;
           _totalExpense = expense;
-          _balance = income - expense;
-          _transactionCount = count;
-          _recentTransactions = transactions['items'] ?? [];
+          _balanceChangePct = changePct;
+          _recentTransactions = recent['items'] ?? [];
+          _topSpendCats = topSpendCats;
           _isLoading = false;
         });
       }
@@ -96,32 +174,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (catId != null && _categoryMap.containsKey(catId)) {
       return _categoryMap[catId]!;
     }
-    return transaction['categoryName'] ?? transaction['category']?['name'] ?? 'Kategori';
+    return '';
   }
 
-  String _formatDate(String? dateStr) {
+  String _formatDay(String? dateStr) {
     if (dateStr == null) return '';
     try {
       final date = DateTime.parse(dateStr);
       final now = DateTime.now();
-      if (date.day == now.day && date.month == now.month && date.year == now.year) {
-        return 'Bugün';
-      }
-      return DateFormat('dd MMM', 'tr_TR').format(date);
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final d = DateTime(date.year, date.month, date.day);
+      if (d == today) return 'Bugün';
+      if (d == yesterday) return 'Dün';
+      return DateFormat('d MMMM', 'tr_TR').format(date);
     } catch (e) {
-      return dateStr;
+      return '';
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+            ? Center(child: CircularProgressIndicator(color: t.brand))
             : RefreshIndicator(
                 onRefresh: _loadDashboardData,
-                color: AppColors.accent,
+                color: t.brand,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
@@ -132,140 +213,223 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Merhaba 👋',
-                                    style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  const Text(
-                                    'SmartFinance',
-                                    style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
-                                  ),
-                                ],
+                              Text(_greeting, style: TextStyle(color: t.textSec, fontSize: 13)),
+                              const SizedBox(height: 2),
+                              Text(
+                                _userName.isNotEmpty ? _userName : 'Kullanıcı',
+                                style: jakarta(fontSize: 18, fontWeight: FontWeight.w600, color: t.text),
                               ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.cardBg,
-                              borderRadius: BorderRadius.circular(11),
-                              border: Border.all(color: AppColors.hairline),
-                            ),
-                            child: const Icon(
-                              Icons.notifications_none_rounded,
-                              color: AppColors.textSecondary,
-                              size: 18,
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: t.card,
+                                  border: Border.all(color: t.border),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(LucideIcons.bell, color: t.text, size: 18),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                width: 38,
+                                height: 38,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(color: t.brandSoft, shape: BoxShape.circle),
+                                child: Text(
+                                  _initials,
+                                  style: jakarta(fontSize: 14, fontWeight: FontWeight.w700, color: t.brand),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
                       // Ay seçici
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildMonthNavButton(Icons.chevron_left, () => _changeMonth(-1)),
-                          SizedBox(
-                            width: 120,
-                            child: Text(
-                              DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _monthNavButton(t, LucideIcons.chevronLeft, () => _changeMonth(-1)),
+                              SizedBox(
+                                width: 110,
+                                child: Text(
+                                  DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: t.text, fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
                               ),
-                            ),
+                              _monthNavButton(
+                                  t, LucideIcons.chevronRight, _isCurrentMonth ? null : () => _changeMonth(1)),
+                            ],
                           ),
-                          _buildMonthNavButton(
-                            Icons.chevron_right,
-                            _isCurrentMonth ? null : () => _changeMonth(1),
-                          ),
-                        ],
+                        ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // Bakiye kartı — halka + rakam
+                      // Bakiye kartı — gradient hero
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
-                          color: AppColors.cardBg,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(color: AppColors.hairline),
+                          gradient: LinearGradient(
+                            colors: [t.brand, t.brandDeep],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildBalanceRing(),
-                            const SizedBox(width: 18),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'BAKİYE',
-                                  style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2),
-                                ),
-                                const SizedBox(height: 2),
-                                Text.rich(
-                                  TextSpan(
-                                    children: [
-                                      const TextSpan(text: '₺', style: TextStyle(color: AppColors.accent, fontSize: 22, fontWeight: FontWeight.w800)),
-                                      TextSpan(
-                                        text: _balance.toStringAsFixed(0),
-                                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 30, fontWeight: FontWeight.w800),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            Text('Bu Ayki Bakiye',
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
+                            const SizedBox(height: 8),
+                            Text(
+                              formatTRY(_totalIncome - _totalExpense),
+                              style: jakarta(
+                                  fontSize: 34, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: -0.5),
                             ),
+                            if (_balanceChangePct != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(100),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _balanceChangePct! >= 0 ? LucideIcons.arrowUpRight : LucideIcons.arrowDownRight,
+                                      color: Colors.white,
+                                      size: 13,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '${_balanceChangePct! >= 0 ? '+' : ''}${_balanceChangePct!.toStringAsFixed(1)}% geçen aya göre',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
 
                       const SizedBox(height: 14),
 
-                      // Gelir / Gider çipleri
+                      // Gelir / Gider kartları
                       Row(
                         children: [
                           Expanded(
-                            child: _buildSummaryCard(
+                            child: _summaryCard(
+                              t,
                               'Gelir',
                               _totalIncome,
-                              AppColors.green,
-                              Icons.arrow_downward_rounded,
-                              1.0,
+                              t.green,
+                              t.greenSoft,
+                              LucideIcons.arrowDownLeft,
+                              (_totalIncome + _totalExpense) == 0 ? 0 : _totalIncome / (_totalIncome + _totalExpense),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _buildSummaryCard(
+                            child: _summaryCard(
+                              t,
                               'Gider',
                               _totalExpense,
-                              AppColors.red,
-                              Icons.arrow_upward_rounded,
-                              _totalIncome == 0 ? 0 : (_totalExpense / _totalIncome).clamp(0, 1),
+                              t.red,
+                              t.redSoft,
+                              LucideIcons.arrowUpRight,
+                              (_totalIncome + _totalExpense) == 0 ? 0 : _totalExpense / (_totalIncome + _totalExpense),
                             ),
                           ),
                         ],
                       ),
+
+                      if (_topSpendCats.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                          decoration: BoxDecoration(
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Kategoriye Göre Harcama',
+                                  style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 12),
+                              ..._topSpendCats.map((c) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(color: c.color, shape: BoxShape.circle),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        SizedBox(
+                                          width: 88,
+                                          child: Text(
+                                            c.name,
+                                            style: TextStyle(color: t.text, fontSize: 13),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(3),
+                                            child: Container(
+                                              height: 6,
+                                              color: t.divider,
+                                              child: FractionallySizedBox(
+                                                alignment: Alignment.centerLeft,
+                                                widthFactor: (c.pct / 100).clamp(0, 1),
+                                                child: Container(color: c.color),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 74,
+                                          child: Text(
+                                            formatTRY(c.amount, decimals: false),
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(color: t.textSec, fontSize: 12.5),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                            ],
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 28),
 
@@ -273,50 +437,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Son İşlemler',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '$_transactionCount işlem',
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 13,
-                            ),
+                          Text('Son İşlemler', style: jakarta(fontSize: 15, fontWeight: FontWeight.w600, color: t.text)),
+                          GestureDetector(
+                            onTap: widget.onSeeAllTransactions,
+                            child: Text('Tümünü Gör',
+                                style: TextStyle(color: t.brand, fontSize: 13, fontWeight: FontWeight.w500)),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
 
-                      // Son işlemler listesi
                       if (_recentTransactions.isEmpty)
                         Container(
                           padding: const EdgeInsets.all(32),
                           decoration: BoxDecoration(
-                            color: AppColors.cardBg,
-                            borderRadius: BorderRadius.circular(14),
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
                               'Henüz işlem yok\n+ butonuyla ilk işleminizi ekleyin',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                              style: TextStyle(color: t.textSec, fontSize: 14),
                             ),
                           ),
                         )
                       else
-                        ...(_recentTransactions.map((t) => TransactionCard(
-                              description: t['description'] ?? '',
-                              amount: (t['amount'] ?? 0).toDouble(),
-                              type: t['type'] ?? 2,
-                              categoryName: _getCategoryName(t),
-                              date: _formatDate(t['transactionDate']),
-                            ))),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < _recentTransactions.length; i++)
+                                TransactionCard(
+                                  description: _recentTransactions[i]['description'] ?? '',
+                                  merchantName: _recentTransactions[i]['merchantName'],
+                                  amount: (_recentTransactions[i]['amount'] ?? 0).toDouble(),
+                                  type: _recentTransactions[i]['type'] ?? 2,
+                                  categoryName: _getCategoryName(_recentTransactions[i]),
+                                  date: _formatDay(_recentTransactions[i]['transactionDate']),
+                                  showDivider: i != _recentTransactions.length - 1,
+                                ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -325,51 +495,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMonthNavButton(IconData icon, VoidCallback? onTap) {
+  Widget _monthNavButton(AppTokens t, IconData icon, VoidCallback? onTap) {
     final enabled = onTap != null;
-    return Container(
+    return SizedBox(
       width: 30,
       height: 30,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.hairline),
-      ),
       child: IconButton(
         onPressed: onTap,
-        icon: Icon(icon, size: 16, color: enabled ? AppColors.textSecondary : AppColors.textMuted),
+        icon: Icon(icon, size: 18, color: enabled ? t.textSec : t.textTert),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
       ),
     );
   }
 
-  Widget _buildBalanceRing() {
-    return Container(
-      width: 68,
-      height: 68,
-      padding: const EdgeInsets.all(3),
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: SweepGradient(
-          colors: [AppColors.accentDark, AppColors.accent, AppColors.accentDark],
-        ),
-      ),
-      child: Container(
-        decoration: const BoxDecoration(color: AppColors.cardBg, shape: BoxShape.circle),
-        child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.accent, size: 26),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(String title, double amount, Color color, IconData icon, num fillRatio) {
+  Widget _summaryCard(
+      AppTokens t, String title, double amount, Color color, Color softColor, IconData icon, double ratio) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.hairline),
+        color: t.card,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,36 +524,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(color: softColor, borderRadius: BorderRadius.circular(8)),
                 child: Icon(icon, color: color, size: 14),
               ),
-              const SizedBox(width: 7),
-              Text(
-                title,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700),
-              ),
+              const SizedBox(width: 8),
+              Text(title, style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            '₺${amount.toStringAsFixed(0)}',
-            style: TextStyle(
-              color: color,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
+            formatTRY(amount),
+            style: TextStyle(color: t.text, fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
-              value: fillRatio.toDouble(),
+              value: ratio.clamp(0, 1).toDouble(),
               minHeight: 4,
-              backgroundColor: AppColors.cardBgLight,
+              backgroundColor: t.divider,
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
