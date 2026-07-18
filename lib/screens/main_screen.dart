@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/app_colors.dart';
+import '../core/theme/app_tokens.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
@@ -40,25 +42,27 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   static const _tabs = [
-    (icon: Icons.home_rounded, label: 'Ana Sayfa'),
-    (icon: Icons.show_chart_rounded, label: 'Yatırımlar'),
+    (icon: LucideIcons.house, label: 'Ana Sayfa'),
+    (icon: LucideIcons.trendingUp, label: 'Yatırımlar'),
     null, // ortadaki FAB yuvası
-    (icon: Icons.receipt_long_rounded, label: 'İşlemler'),
-    (icon: Icons.person_rounded, label: 'Profil'),
+    (icon: LucideIcons.list, label: 'İşlemler'),
+    (icon: LucideIcons.user, label: 'Profil'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          height: 66,
           decoration: BoxDecoration(
-            color: AppColors.cardBg,
-            border: Border.all(color: AppColors.hairline),
+            color: t.navBg,
+            border: Border.all(color: t.border),
             borderRadius: BorderRadius.circular(26),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 32, offset: const Offset(0, 12))],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -66,38 +70,40 @@ class _MainScreenState extends State<MainScreen> {
               final tab = _tabs[index];
               if (tab == null) {
                 return Transform.translate(
-                  offset: const Offset(0, -14),
+                  offset: const Offset(0, -15),
                   child: GestureDetector(
                     onTap: _showAddMenu,
                     child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
-                      child: const Icon(Icons.add, color: Colors.white, size: 26),
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: t.brand,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: t.bg, width: 4),
+                        boxShadow: [BoxShadow(color: t.brand.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 8))],
+                      ),
+                      child: const Icon(LucideIcons.plus, color: Colors.white, size: 26),
                     ),
                   ),
                 );
               }
               final isActive = index == _currentIndex;
+              final color = isActive ? t.brand : t.textTert;
               return GestureDetector(
                 onTap: () => setState(() => _currentIndex = index),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isActive ? AppColors.cardBgLight : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                child: SizedBox(
+                  width: 56,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(tab.icon, size: 20, color: isActive ? AppColors.textPrimary : AppColors.textMuted),
+                      Icon(tab.icon, size: 22, color: color),
                       const SizedBox(height: 3),
                       Text(
                         tab.label,
                         style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                          fontSize: 10.5,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: color,
                         ),
                       ),
                     ],
