@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/constants/category_style.dart';
+import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 
 class PdfImportScreen extends StatefulWidget {
@@ -34,14 +37,12 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   Future<void> _loadCategories() async {
     final result = await ApiService.authenticatedGet('/category');
-    debugPrint('[PdfImport] Categories result type: ${result.runtimeType}, value: $result');
     if (!mounted) return;
     if (result is List) {
       setState(() {
         _categories = List<Map<String, dynamic>>.from(result);
       });
     }
-    debugPrint('[PdfImport] Loaded ${_categories.length} categories');
   }
 
   Future<void> _pickFile() async {
@@ -61,84 +62,66 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     if (_selectedFilePath == null) return;
     setState(() => _isLoading = true);
 
-    debugPrint('[PdfImport] Uploading: $_selectedFilePath');
-
-    final result = await ApiService.authenticatedUpload(
-      '/pdfimport/parse',
-      _selectedFilePath!,
-    );
-
-    debugPrint('[PdfImport] Result: $result');
+    final result = await ApiService.authenticatedUpload('/pdfimport/parse', _selectedFilePath!);
     if (!mounted) return;
 
+    final t = AppTokens.of(context);
     setState(() {
       _isLoading = false;
       _parseResult = result is Map<String, dynamic> ? result : null;
 
       if (_parseResult != null && _parseResult!['transactions'] != null) {
-        _transactions = List<Map<String, dynamic>>.from(
-          _parseResult!['transactions'],
-        );
+        _transactions = List<Map<String, dynamic>>.from(_parseResult!['transactions']);
         // Duplicate olmayanları varsayılan seçili yap
-        _selectedItems = _transactions.map((t) => !(t['isDuplicate'] ?? false)).toList();
+        _selectedItems = _transactions.map((tx) => !(tx['isDuplicate'] ?? false)).toList();
         _step = 1;
       }
     });
 
     if (_transactions.isEmpty && mounted) {
       final errorMsg = _parseResult?['error'] ?? _parseResult?['message'] ?? 'Dosyadan işlem çıkarılamadı.';
-      debugPrint('[PdfImport] Error: $errorMsg');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: AppColors.orange,
-        ),
+        SnackBar(content: Text(errorMsg), backgroundColor: t.amber),
       );
     }
   }
 
   Future<void> _confirmImport() async {
+    final t = AppTokens.of(context);
     final selectedTransactions = <Map<String, dynamic>>[];
     for (int i = 0; i < _transactions.length; i++) {
       if (_selectedItems[i]) {
-        final t = _transactions[i];
+        final tx = _transactions[i];
         selectedTransactions.add({
-          'amount': t['amount'],
-          'description': t['description'] ?? '',
-          'transactionDate': t['transactionDate'],
-          'type': t['type'],
-          'categoryId': t['categoryId'],
-          'merchantName': t['merchantName'],
+          'amount': tx['amount'],
+          'description': tx['description'] ?? '',
+          'transactionDate': tx['transactionDate'],
+          'type': tx['type'],
+          'categoryId': tx['categoryId'],
+          'merchantName': tx['merchantName'],
         });
       }
     }
 
-    debugPrint('[PdfImport] Confirm: ${selectedTransactions.length} items selected');
-
     if (selectedTransactions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('En az bir işlem seçmelisiniz.'),
-          backgroundColor: AppColors.orange,
-        ),
+        SnackBar(content: const Text('En az bir işlem seçmelisiniz.'), backgroundColor: t.amber),
       );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    debugPrint('[PdfImport] Sending confirm request...');
     final result = await ApiService.authenticatedPost('/pdfimport/confirm', {
       'transactions': selectedTransactions,
     });
-    debugPrint('[PdfImport] Confirm result: $result');
     if (!mounted) return;
 
     setState(() {
       _isLoading = false;
       if (result is Map && result.containsKey('error')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: ${result['error']}'), backgroundColor: AppColors.red),
+          SnackBar(content: Text('Hata: ${result['error']}'), backgroundColor: t.red),
         );
       } else {
         _savedCount = result['count'] ?? 0;
@@ -149,31 +132,32 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       appBar: AppBar(
         title: const Text('Ekstre İçe Aktar'),
-        backgroundColor: AppColors.cardBg,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
         leading: _step == 1
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() { _step = 0; _transactions = []; }),
+                icon: Icon(LucideIcons.arrowLeft, color: t.text),
+                onPressed: () => setState(() {
+                  _step = 0;
+                  _transactions = [];
+                }),
               )
             : null,
       ),
       body: _isLoading
-          ? _buildLoading()
+          ? _buildLoading(t)
           : _step == 0
-              ? _buildFileSelection()
+              ? _buildFileSelection(t)
               : _step == 1
-                  ? _buildPreview()
-                  : _buildResult(),
+                  ? _buildPreview(t)
+                  : _buildResult(t),
     );
   }
 
-  Widget _buildLoading() {
+  Widget _buildLoading(AppTokens t) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -181,16 +165,17 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.cardBg,
+              color: t.card,
+              border: Border.all(color: t.border),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                CircularProgressIndicator(color: AppColors.accent),
-                SizedBox(height: 20),
-                Text('PDF analiz ediliyor...', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-                SizedBox(height: 8),
-                Text('İşlemler çıkarılıyor', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                CircularProgressIndicator(color: t.brand),
+                const SizedBox(height: 20),
+                Text('Dosya analiz ediliyor...', style: TextStyle(color: t.text, fontSize: 16)),
+                const SizedBox(height: 8),
+                Text('İşlemler çıkarılıyor', style: TextStyle(color: t.textSec, fontSize: 13)),
               ],
             ),
           ),
@@ -201,69 +186,58 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   // ─── AŞAMA 0: DOSYA SEÇİMİ ──────────────────────────────
 
-  Widget _buildFileSelection() {
+  Widget _buildFileSelection(AppTokens t) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          // PDF ikonu
+          const SizedBox(height: 32),
           Container(
-            width: 100, height: 100,
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Icon(Icons.picture_as_pdf, size: 50, color: Colors.white),
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(color: t.brandSoft, borderRadius: BorderRadius.circular(22)),
+            child: Icon(LucideIcons.upload, size: 40, color: t.brand),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'Banka Ekstresi Yükle',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+          const SizedBox(height: 22),
+          Text('Banka Ekstresi Yükle', style: TextStyle(color: t.text, fontSize: 20, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Banka ekstresi dosyanızı seçin (PDF veya Excel).\nİşlemler otomatik olarak algılanacak.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+            style: TextStyle(color: t.textSec, fontSize: 14, height: 1.5),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
 
-          // Dosya seç kutusu
           GestureDetector(
             onTap: _pickFile,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
               decoration: BoxDecoration(
-                color: AppColors.cardBg,
+                color: t.card,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _selectedFilePath != null ? AppColors.green : AppColors.textMuted,
-                  width: 1.5,
-                ),
+                border: Border.all(color: _selectedFilePath != null ? t.green : t.border, width: 1.5),
               ),
               child: Column(
                 children: [
                   Icon(
-                    _selectedFilePath != null ? Icons.check_circle : Icons.cloud_upload_outlined,
-                    size: 40,
-                    color: _selectedFilePath != null ? AppColors.green : AppColors.textSecondary,
+                    _selectedFilePath != null ? LucideIcons.circleCheck : LucideIcons.cloudUpload,
+                    size: 36,
+                    color: _selectedFilePath != null ? t.green : t.textSec,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     _selectedFileName ?? 'PDF veya Excel dosyası seçin',
                     style: TextStyle(
-                      color: _selectedFilePath != null ? AppColors.green : AppColors.textSecondary,
-                      fontSize: 15, fontWeight: FontWeight.w500,
+                      color: _selectedFilePath != null ? t.green : t.textSec,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   if (_selectedFilePath != null) ...[
                     const SizedBox(height: 4),
-                    const Text(
-                      'Değiştirmek için tekrar dokunun',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                    ),
+                    Text('Değiştirmek için tekrar dokunun', style: TextStyle(color: t.textTert, fontSize: 12)),
                   ],
                 ],
               ),
@@ -271,22 +245,18 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           ),
           const Spacer(),
 
-          // Desteklenen bankalar
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.cardBgLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
+            decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(12)),
+            child: Row(
               children: [
-                Icon(Icons.info_outline, color: AppColors.textSecondary, size: 18),
-                SizedBox(width: 10),
+                Icon(LucideIcons.info, color: t.textSec, size: 18),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Halkbank, Ziraat ve diğer metin tabanlı PDF ekstreleri; Ziraat için ayrıca Excel (.xlsx) ekstre çıktısı desteklenir.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: t.textSec, fontSize: 12),
                   ),
                 ),
               ],
@@ -294,18 +264,12 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Analiz Et butonu
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
               onPressed: _selectedFilePath != null ? _parseFile : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                disabledBackgroundColor: AppColors.textMuted,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              child: const Text('Analiz Et', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+              child: const Text('Analiz Et', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -315,7 +279,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   // ─── AŞAMA 1: ÖNİZLEME ──────────────────────────────────
 
-  Widget _buildPreview() {
+  Widget _buildPreview(AppTokens t) {
     final bankName = _parseResult?['bankName'] ?? 'Bilinmeyen';
     final period = _parseResult?['period'] ?? '';
     final dupCount = _parseResult?['duplicateCount'] ?? 0;
@@ -324,24 +288,23 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     double totalIncome = 0, totalExpense = 0;
     for (int i = 0; i < _transactions.length; i++) {
       if (_selectedItems[i]) {
-        final t = _transactions[i];
-        if (t['type'] == 1) {
-          totalIncome += (t['amount'] as num).toDouble();
+        final tx = _transactions[i];
+        if (tx['type'] == 1) {
+          totalIncome += (tx['amount'] as num).toDouble();
         } else {
-          totalExpense += (t['amount'] as num).toDouble();
+          totalExpense += (tx['amount'] as num).toDouble();
         }
       }
     }
 
     return Column(
       children: [
-        // Üst bilgi kartı
         Container(
           width: double.infinity,
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.accent,
+            gradient: LinearGradient(colors: [t.brand, t.brandDeep], begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -349,20 +312,19 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.account_balance, color: Colors.white, size: 20),
+                  const Icon(LucideIcons.landmark, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(bankName, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const Spacer(),
-                  if (period.isNotEmpty)
-                    Text(period, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  if (period.isNotEmpty) Text(period, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 14),
               Row(
                 children: [
-                  _summaryChip('Gelir', '+₺${totalIncome.toStringAsFixed(2)}', AppColors.green),
+                  _summaryChip('Gelir', '+${formatTRY(totalIncome)}', Colors.white),
                   const SizedBox(width: 10),
-                  _summaryChip('Gider', '-₺${totalExpense.toStringAsFixed(2)}', AppColors.red),
+                  _summaryChip('Gider', '-${formatTRY(totalExpense)}', Colors.white),
                 ],
               ),
               const SizedBox(height: 10),
@@ -373,11 +335,8 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                     const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text('$dupCount tekrar', style: const TextStyle(color: AppColors.orange, fontSize: 11)),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(8)),
+                      child: Text('$dupCount tekrar', style: const TextStyle(color: Colors.white, fontSize: 11)),
                     ),
                   ],
                 ],
@@ -386,37 +345,25 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           ),
         ),
 
-        // İşlem listesi
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _transactions.length,
-            itemBuilder: (ctx, i) => _buildTransactionTile(i),
+            itemBuilder: (ctx, i) => _buildTransactionTile(t, i),
           ),
         ),
 
-        // Onay butonu
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            color: AppColors.cardBg,
-            border: Border(top: BorderSide(color: AppColors.textMuted, width: 0.5)),
-          ),
+          decoration: BoxDecoration(color: t.card, border: Border(top: BorderSide(color: t.border))),
           child: SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
               onPressed: selectedCount > 0 ? _confirmImport : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.green,
-                disabledBackgroundColor: AppColors.textMuted,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: const Icon(Icons.check, color: Colors.white),
-              label: Text(
-                '$selectedCount İşlemi İçe Aktar',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: t.green, foregroundColor: Colors.white),
+              icon: const Icon(LucideIcons.check, color: Colors.white, size: 18),
+              label: Text('$selectedCount İşlemi İçe Aktar', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ),
         ),
@@ -424,37 +371,32 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     );
   }
 
-  Widget _summaryChip(String label, String value, Color color) {
+  Widget _summaryChip(String label, String value, Color valueColor) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(10),
-        ),
+        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
             const SizedBox(height: 2),
-            Text(value, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(value, style: TextStyle(color: valueColor, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTransactionTile(int index) {
-    final t = _transactions[index];
-    final isIncome = t['type'] == 1;
-    final isDuplicate = t['isDuplicate'] ?? false;
-    final amount = (t['amount'] as num).toDouble();
-    final desc = t['description'] ?? '';
-    final merchant = t['merchantName'] ?? '';
-    final dateStr = t['transactionDate'] ?? '';
-    final catName = t['categoryName'];
+  Widget _buildTransactionTile(AppTokens t, int index) {
+    final tx = _transactions[index];
+    final isIncome = tx['type'] == 1;
+    final isDuplicate = tx['isDuplicate'] ?? false;
+    final amount = (tx['amount'] as num).toDouble();
+    final desc = tx['description'] ?? '';
+    final merchant = tx['merchantName'] ?? '';
+    final dateStr = tx['transactionDate'] ?? '';
 
-    // Tarih parse
     String formattedDate = '';
     try {
       final dt = DateTime.parse(dateStr);
@@ -466,17 +408,17 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDuplicate ? AppColors.cardBg.withValues(alpha: 0.5) : AppColors.cardBg,
+        color: isDuplicate ? t.card.withValues(alpha: 0.5) : t.card,
+        border: Border.all(color: isDuplicate ? t.amber.withValues(alpha: 0.4) : t.border),
         borderRadius: BorderRadius.circular(12),
-        border: isDuplicate ? Border.all(color: AppColors.orange.withValues(alpha: 0.4)) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: Checkbox(
           value: _selectedItems[index],
           onChanged: (v) => setState(() => _selectedItems[index] = v ?? false),
-          activeColor: AppColors.accent,
-          side: const BorderSide(color: AppColors.textSecondary),
+          activeColor: t.brand,
+          side: BorderSide(color: t.textSec),
         ),
         title: Row(
           children: [
@@ -484,68 +426,73 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
               child: Text(
                 merchant.isNotEmpty ? merchant : desc,
                 style: TextStyle(
-                  color: isDuplicate ? AppColors.textMuted : AppColors.textPrimary,
-                  fontSize: 14, fontWeight: FontWeight.w500,
+                  color: isDuplicate ? t.textTert : t.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   decoration: isDuplicate ? TextDecoration.lineThrough : null,
                 ),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Text(
-              '${isIncome ? '+' : '-'}₺${amount.toStringAsFixed(2)}',
-              style: TextStyle(
-                color: isDuplicate ? AppColors.textMuted : (isIncome ? AppColors.green : AppColors.red),
-                fontWeight: FontWeight.bold, fontSize: 14,
-              ),
+              '${isIncome ? '+' : '-'}${formatTRY(amount)}',
+              style: TextStyle(color: isDuplicate ? t.textTert : (isIncome ? t.green : t.red), fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ],
         ),
         subtitle: Row(
           children: [
-            Text(formattedDate, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+            Text(formattedDate, style: TextStyle(color: t.textSec, fontSize: 11)),
             if (isDuplicate) ...[
               const SizedBox(width: 8),
-              const Text('⚠️ Zaten kayıtlı', style: TextStyle(color: AppColors.orange, fontSize: 10)),
+              Text('Zaten kayıtlı', style: TextStyle(color: t.amber, fontSize: 10)),
             ],
             const Spacer(),
-            // Kategori seçici
-            _buildCategoryDropdown(index, catName),
+            _buildCategoryDropdown(t, index),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCategoryDropdown(int index, String? currentCatName) {
+  Widget _buildCategoryDropdown(AppTokens t, int index) {
     final currentCatId = _transactions[index]['categoryId'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: currentCatId != null
-            ? AppColors.accent.withValues(alpha: 0.2)
-            : AppColors.textMuted.withValues(alpha: 0.3),
+        color: currentCatId != null ? t.brandSoft : t.inputBg,
         borderRadius: BorderRadius.circular(6),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int?>(
           value: currentCatId,
           isDense: true,
-          dropdownColor: AppColors.cardBg,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
-          hint: const Text('Kategori', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          dropdownColor: t.card,
+          style: TextStyle(color: t.text, fontSize: 11),
+          hint: Text('Kategori', style: TextStyle(color: t.textTert, fontSize: 11)),
           items: [
-            const DropdownMenuItem<int?>(value: null, child: Text('Kategorisiz', style: TextStyle(fontSize: 11))),
-            ..._categories.map((c) => DropdownMenuItem<int?>(
-              value: c['id'],
-              child: Text('${c['icon'] ?? ''} ${c['name']}', style: const TextStyle(fontSize: 11)),
-            )),
+            DropdownMenuItem<int?>(value: null, child: Text('Kategorisiz', style: TextStyle(fontSize: 11, color: t.textSec))),
+            ..._categories.map((c) {
+              final style = CategoryStyles.resolve(c['name'] ?? '', icon: c['icon'], color: c['color']);
+              return DropdownMenuItem<int?>(
+                value: c['id'],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 7, height: 7, decoration: BoxDecoration(color: style.color, shape: BoxShape.circle)),
+                    const SizedBox(width: 6),
+                    Text(c['name'] ?? '', style: TextStyle(fontSize: 11, color: t.text)),
+                  ],
+                ),
+              );
+            }),
           ],
           onChanged: (v) {
             setState(() {
               _transactions[index]['categoryId'] = v;
-              _transactions[index]['categoryName'] = v != null
-                  ? _categories.firstWhere((c) => c['id'] == v, orElse: () => {})['name']
-                  : null;
+              _transactions[index]['categoryName'] =
+                  v != null ? _categories.firstWhere((c) => c['id'] == v, orElse: () => {})['name'] : null;
             });
           },
         ),
@@ -555,7 +502,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   // ─── AŞAMA 2: SONUÇ ─────────────────────────────────────
 
-  Widget _buildResult() {
+  Widget _buildResult(AppTokens t) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -563,35 +510,26 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.green.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle, color: AppColors.green, size: 50),
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(color: t.greenSoft, shape: BoxShape.circle),
+              child: Icon(LucideIcons.circleCheck, color: t.green, size: 44),
             ),
             const SizedBox(height: 24),
-            Text(
-              '$_savedCount İşlem Kaydedildi!',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
-            ),
+            Text('$_savedCount İşlem Kaydedildi!', style: TextStyle(color: t.text, fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            const Text(
-              'İşlemler başarıyla içe aktarıldı.\nDashboard\'da görüntüleyebilirsiniz.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+            Text(
+              'İşlemler başarıyla içe aktarıldı.\nAna Sayfa\'da görüntüleyebilirsiniz.',
+              style: TextStyle(color: t.textSec, fontSize: 14, height: 1.5),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 36),
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: const Text('Tamam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                child: const Text('Tamam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],

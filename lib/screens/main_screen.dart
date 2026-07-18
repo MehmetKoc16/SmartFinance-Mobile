@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../core/constants/app_colors.dart';
+import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
@@ -118,9 +118,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showAddMenu() {
+    final t = AppTokens.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.cardBg,
+      backgroundColor: t.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -131,23 +132,23 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             Container(
               width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 24),
-            const Text('İşlem Ekle', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
+            Text('İşlem Ekle', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
             const SizedBox(height: 20),
-            _buildAddOption(Icons.edit_note_rounded, 'Elle Ekle', 'Gelir veya gider ekle', AppColors.accent, onTap: () async {
+            _buildAddOption(t, LucideIcons.squarePen, 'Elle Ekle', 'Gelir veya gider ekle', t.brand, onTap: () async {
               Navigator.pop(context);
               final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionScreen()));
               if (result == true) _refreshPages();
             }),
             const SizedBox(height: 12),
-            _buildAddOption(Icons.category_rounded, 'Kategoriler', 'Kategori ekle veya düzenle', AppColors.accent, onTap: () {
+            _buildAddOption(t, LucideIcons.shapes, 'Kategoriler', 'Kategori ekle veya düzenle', t.brand, onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen()));
             }),
             const SizedBox(height: 12),
-            _buildAddOption(Icons.picture_as_pdf_rounded, 'PDF ile Ekle', 'Banka ekstresini içe aktar', AppColors.orange, onTap: () {
+            _buildAddOption(t, LucideIcons.fileText, 'PDF ile Ekle', 'Banka ekstresini içe aktar', t.amber, onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const PdfImportScreen())).then((_) => _refreshPages());
             }),
@@ -158,18 +159,18 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildAddOption(IconData icon, String title, String subtitle, Color color, {VoidCallback? onTap}) {
+  Widget _buildAddOption(AppTokens t, IconData icon, String title, String subtitle, Color color, {VoidCallback? onTap}) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
         child: Icon(icon, color: color),
       ),
-      title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+      title: Text(title, style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: TextStyle(color: t.textSec, fontSize: 12)),
+      trailing: Icon(LucideIcons.chevronRight, color: t.textTert),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      tileColor: AppColors.cardBgLight,
+      tileColor: t.inputBg,
       onTap: onTap,
     );
   }

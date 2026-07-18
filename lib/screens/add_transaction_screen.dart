@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/constants/app_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -56,7 +57,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  // Seçilen işlem tipine uygun olmayan kategori seçiliyse temizle (ör. Gelir'e
+  // geçince önceden seçili bir gider kategorisi kalmasın).
+  List<dynamic> get _filteredCategories =>
+      _categories.where((c) => c['type'] == _selectedType).toList();
+
   Future<void> _selectDate() async {
+    final t = AppTokens.of(context);
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
@@ -64,12 +71,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.accent,
-              surface: AppColors.cardBg,
-            ),
-          ),
+          data: Theme.of(context).copyWith(colorScheme: ColorScheme.dark(primary: t.brand, surface: t.card)),
           child: child!,
         );
       },
@@ -116,10 +118,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _showError(response['error']);
       } else {
         if (mounted) {
+          final t = AppTokens.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('İşlem başarıyla eklendi!'),
-              backgroundColor: AppColors.green,
+              backgroundColor: t.green,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -135,10 +138,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   void _showError(String message) {
+    final t = AppTokens.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: AppColors.red,
+        backgroundColor: t.red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -147,6 +151,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('İşlem Ekle')),
       body: SingleChildScrollView(
@@ -154,42 +159,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gelir / Gider seçimi
             Container(
-              decoration: BoxDecoration(
-                color: AppColors.cardBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(12)),
               child: Row(
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedType = 1),
+                      onTap: () => setState(() {
+                        _selectedType = 1;
+                        _selectedCategoryId = null;
+                      }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: _selectedType == 1
-                              ? AppColors.green.withOpacity(0.2)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: _selectedType == 1
-                              ? Border.all(color: AppColors.green, width: 1.5)
-                              : null,
+                          color: _selectedType == 1 ? t.greenSoft : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: _selectedType == 1 ? Border.all(color: t.green, width: 1.5) : null,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.arrow_downward_rounded,
-                                color: _selectedType == 1 ? AppColors.green : AppColors.textMuted,
-                                size: 20),
+                            Icon(LucideIcons.arrowDownLeft, color: _selectedType == 1 ? t.green : t.textTert, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              'Gelir',
-                              style: TextStyle(
-                                color: _selectedType == 1 ? AppColors.green : AppColors.textMuted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            Text('Gelir',
+                                style: TextStyle(
+                                    color: _selectedType == 1 ? t.green : t.textTert, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -197,32 +192,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedType = 2),
+                      onTap: () => setState(() {
+                        _selectedType = 2;
+                        _selectedCategoryId = null;
+                      }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: _selectedType == 2
-                              ? AppColors.red.withOpacity(0.2)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: _selectedType == 2
-                              ? Border.all(color: AppColors.red, width: 1.5)
-                              : null,
+                          color: _selectedType == 2 ? t.redSoft : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: _selectedType == 2 ? Border.all(color: t.red, width: 1.5) : null,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.arrow_upward_rounded,
-                                color: _selectedType == 2 ? AppColors.red : AppColors.textMuted,
-                                size: 20),
+                            Icon(LucideIcons.arrowUpRight, color: _selectedType == 2 ? t.red : t.textTert, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              'Gider',
-                              style: TextStyle(
-                                color: _selectedType == 2 ? AppColors.red : AppColors.textMuted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            Text('Gider',
+                                style: TextStyle(
+                                    color: _selectedType == 2 ? t.red : t.textTert, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -234,59 +222,50 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             const SizedBox(height: 24),
 
-            // Tutar
-            const Text('Tutar', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text('Tutar', style: TextStyle(color: t.textSec, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
+              style: TextStyle(color: t.text, fontSize: 24, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
                 hintText: '0.00',
                 prefixIcon: Padding(
-                  padding: EdgeInsets.only(left: 16, top: 12, bottom: 12),
-                  child: Text('₺', style: TextStyle(color: AppColors.accent, fontSize: 24, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.only(left: 16, top: 12, bottom: 12),
+                  child: Text('₺', style: TextStyle(color: t.brand, fontSize: 24, fontWeight: FontWeight.bold)),
                 ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // Açıklama
-            const Text('Açıklama', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text('Açıklama', style: TextStyle(color: t.textSec, fontSize: 13)),
             const SizedBox(height: 8),
             TextField(
               controller: _descriptionController,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
+              style: TextStyle(color: t.text),
+              decoration: InputDecoration(
                 hintText: 'Örn: Market alışverişi',
-                prefixIcon: Icon(Icons.description_outlined, color: AppColors.textMuted),
+                prefixIcon: Icon(LucideIcons.fileText, color: t.textTert, size: 18),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // Tarih seçimi
-            const Text('Tarih', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text('Tarih', style: TextStyle(color: t.textSec, fontSize: 13)),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _selectDate,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBgLight,
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(12)),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, color: AppColors.textMuted, size: 20),
+                    Icon(LucideIcons.calendar, color: t.textTert, size: 18),
                     const SizedBox(width: 12),
-                    Text(
-                      DateFormat('dd MMMM yyyy', 'tr_TR').format(_selectedDate),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-                    ),
+                    Text(DateFormat('dd MMMM yyyy', 'tr_TR').format(_selectedDate), style: TextStyle(color: t.text, fontSize: 15)),
                     const Spacer(),
-                    const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                    Icon(LucideIcons.chevronRight, color: t.textTert),
                   ],
                 ),
               ),
@@ -294,34 +273,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             const SizedBox(height: 20),
 
-            // Kategori seçimi
-            const Text('Kategori', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text('Kategori', style: TextStyle(color: t.textSec, fontSize: 13)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.cardBgLight,
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(12)),
               child: _isCategoriesLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator(color: t.brand)),
                     )
                   : DropdownButtonHideUnderline(
                       child: DropdownButton<int>(
                         isExpanded: true,
-                        value: _selectedCategoryId,
-                        hint: const Text('Kategori seçin', style: TextStyle(color: AppColors.textMuted)),
-                        dropdownColor: AppColors.cardBg,
-                        icon: const Icon(Icons.expand_more, color: AppColors.textMuted),
-                        items: _categories.map<DropdownMenuItem<int>>((cat) {
+                        value: _filteredCategories.any((c) => c['id'] == _selectedCategoryId) ? _selectedCategoryId : null,
+                        hint: Text('Kategori seçin', style: TextStyle(color: t.textTert)),
+                        dropdownColor: t.card,
+                        icon: Icon(LucideIcons.chevronDown, color: t.textTert),
+                        items: _filteredCategories.map<DropdownMenuItem<int>>((cat) {
                           return DropdownMenuItem<int>(
                             value: cat['id'],
-                            child: Text(
-                              cat['name'] ?? 'Kategori',
-                              style: const TextStyle(color: AppColors.textPrimary),
-                            ),
+                            child: Text(cat['name'] ?? 'Kategori', style: TextStyle(color: t.text)),
                           );
                         }).toList(),
                         onChanged: (value) => setState(() => _selectedCategoryId = value),
@@ -331,22 +303,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             const SizedBox(height: 36),
 
-            // Kaydet butonu
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveTransaction,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
                 child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                     : const Text('Kaydet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
