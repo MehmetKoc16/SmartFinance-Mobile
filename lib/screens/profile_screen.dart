@@ -113,6 +113,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ─── PROFİL DÜZENLE ─────────────────────────────────────
+
+  void _showEditProfileSheet() {
+    final t = AppTokens.of(context);
+    final nameCtrl = TextEditingController(text: _userName);
+    final emailCtrl = TextEditingController(text: _userEmail);
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Profil Düzenle', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+                const SizedBox(height: 20),
+                Text('Ad Soyad', style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: nameCtrl,
+                  style: TextStyle(color: t.text),
+                  decoration: InputDecoration(hintText: 'Ad Soyad', prefixIcon: Icon(LucideIcons.user, color: t.textTert, size: 18)),
+                ),
+                const SizedBox(height: 14),
+                Text('E-posta', style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: t.text),
+                  decoration: InputDecoration(hintText: 'ornek@eposta.com', prefixIcon: Icon(LucideIcons.mail, color: t.textTert, size: 18)),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (nameCtrl.text.trim().isEmpty || emailCtrl.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: const Text('Tüm alanları doldurunuz!'),
+                                    backgroundColor: t.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
+                              return;
+                            }
+
+                            setSheetState(() => isSubmitting = true);
+
+                            final result = await ApiService.authenticatedPut('/auth/profile', {
+                              'fullName': nameCtrl.text.trim(),
+                              'email': emailCtrl.text.trim(),
+                            });
+
+                            setSheetState(() => isSubmitting = false);
+
+                            if (!mounted) return;
+                            if (result is Map && result.containsKey('error')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(result['error']),
+                                    backgroundColor: t.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
+                              return;
+                            }
+
+                            setState(() {
+                              _userName = result['fullName'] ?? _userName;
+                              _userEmail = result['email'] ?? _userEmail;
+                            });
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: const Text('Profil güncellendi!'),
+                                  backgroundColor: t.green,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            );
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Kaydet'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── ŞİFRE DEĞİŞTİRME ───────────────────────────────────
 
   int _strengthScore(String pw) {
@@ -282,6 +395,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ─── YARDIM ──────────────────────────────────────────────
+
+  static const _faqItems = [
+    (
+      q: 'İşlem nasıl eklerim?',
+      a: 'Alt menüdeki + butonuna dokunup "Elle Ekle" ile gelir/gider girebilir, ya da "PDF ile Ekle" ile banka ekstrenizi içe aktarabilirsiniz.',
+    ),
+    (
+      q: 'Hangi banka ekstrelerini içe aktarabilirim?',
+      a: 'Şu an Halkbank ve Ziraat Bankası\'nın PDF ekstreleri, ayrıca Ziraat\'in Excel (.xlsx) formatı destekleniyor.',
+    ),
+    (
+      q: 'Yatırım fiyatları nasıl güncelleniyor?',
+      a: 'Hisse senedi, kripto para, döviz/altın ve TEFAS fonu fiyatları Yatırımlar ekranını her açtığınızda güncel piyasa verilerinden otomatik çekilir.',
+    ),
+    (
+      q: 'Kategori nasıl eklerim veya silerim?',
+      a: 'Kategoriler ekranındaki + butonuyla yeni kategori ekleyebilir, mevcut bir kategoriye uzun basarak silebilirsiniz.',
+    ),
+    (
+      q: 'Verilerim güvende mi?',
+      a: 'Tüm verileriniz yalnızca sizin hesabınıza özeldir, şifrelenmiş bağlantı üzerinden saklanır ve üçüncü taraflarla paylaşılmaz.',
+    ),
+  ];
+
+  void _showHelpSheet() {
+    final t = AppTokens.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Yardım', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final item in _faqItems)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.q, style: TextStyle(color: t.text, fontSize: 14, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Text(item.a, style: TextStyle(color: t.textSec, fontSize: 13, height: 1.4)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
@@ -337,7 +528,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [
-                          _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle', trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle',
+                              onTap: _showEditProfileSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(
                             t,
                             LucideIcons.bell,
@@ -399,7 +591,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
                           ),
                           _settingsRow(t, LucideIcons.circleHelp, 'Yardım',
-                              trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18), showDivider: false),
+                              onTap: _showHelpSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18), showDivider: false),
                         ],
                       ),
                     ),
