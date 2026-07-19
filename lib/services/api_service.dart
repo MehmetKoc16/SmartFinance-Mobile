@@ -12,9 +12,10 @@ class ApiService{
     static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
     static bool _isRedirectingToLogin = false;
 
-    // Token süresi dolmuş/geçersizse (401) tüm ekranlar için tek noktadan
-    // oturumu kapatıp login ekranına atar; aynı anda birden fazla isteğin
-    // aynı anda 401 dönmesi durumunda tekrar tekrar yönlendirmeyi engeller.
+    // Token süresi dolmuş/geçersizse (401) ve sessiz yenileme (refresh token)
+    // de başarısız olursa tüm ekranlar için tek noktadan oturumu kapatıp
+    // login ekranına atar; aynı anda birden fazla isteğin aynı anda 401
+    // dönmesi durumunda tekrar tekrar yönlendirmeyi engeller.
     static Future<void> _handleUnauthorized() async {
         if (_isRedirectingToLogin) return;
         _isRedirectingToLogin = true;
@@ -37,14 +38,87 @@ class ApiService{
         return prefs.getString('auth_token');
     }
 
+    static Future<void> saveRefreshToken(String refreshToken) async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('refresh_token', refreshToken);
+    }
+
+    static Future<String?> getRefreshToken() async {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString('refresh_token');
+    }
+
     static Future<void> removeToken() async{
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('auth_token');
+        await prefs.remove('refresh_token');
     }
 
     static Future<bool> isLoggedIn() async{
         final token = await getToken();
         return token != null;
+    }
+
+    /// Sunucu tarafında refresh token'ı da iptal edip (mümkünse) yerel
+    /// token'ları temizler. Backend isteği başarısız olsa bile (bağlantı yok
+    /// vb.) yerel oturum her halükarda kapatılır.
+    static Future<void> logout() async {
+        final refreshToken = await getRefreshToken();
+        if (refreshToken != null) {
+            try {
+                await http.post(
+                    Uri.parse('$baseUrl/auth/logout'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: jsonEncode({'refreshToken': refreshToken}),
+                );
+            } catch (_) {
+                // Best-effort — bağlantı yoksa bile yerel oturumu kapatmaya devam et.
+            }
+        }
+        await removeToken();
+    }
+
+    /// Erişim (JWT) token'inin süresi dolunca kullanıcıyı login'e düşürmeden
+    /// önce saklanan refresh token ile sessizce yeni bir token çifti almayı
+    /// dener. Backend rotasyon uyguladığı için (kullanılan refresh token
+    /// iptal edilir) dönen yeni refresh token da kaydedilmeli.
+    static Future<bool> _tryRefreshToken() async {
+        final refreshToken = await getRefreshToken();
+        if (refreshToken == null) return false;
+        try {
+            final response = await http.post(
+                Uri.parse('$baseUrl/auth/refresh'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'refreshToken': refreshToken}),
+            );
+            if (response.statusCode != 200) return false;
+            final data = jsonDecode(response.body);
+            await saveToken(data['token']);
+            await saveRefreshToken(data['refreshToken']);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /// Verilen isteği mevcut erişim token'ıyla gönderir; 401 dönerse önce
+    /// sessizce refresh dener, başarılı olursa isteği yeni token'la bir kez
+    /// daha gönderir. Refresh de başarısız olursa oturumu sonlandırır.
+    static Future<http.Response> _sendWithAuth(
+        Future<http.Response> Function(String token) send,
+    ) async {
+        final token = await getToken();
+        final response = await send(token ?? '');
+        if (response.statusCode != 401) return response;
+
+        final refreshed = await _tryRefreshToken();
+        if (!refreshed) {
+            await _handleUnauthorized();
+            return response;
+        }
+
+        final newToken = await getToken();
+        return send(newToken ?? '');
     }
 
     static Future<Map<String,dynamic>> register({
@@ -67,6 +141,7 @@ class ApiService{
 
             if(response.statusCode == 200){
                 await saveToken(data['token']);
+                await saveRefreshToken(data['refreshToken']);
                 return {'success':true,'data': data};
             }else{
                 return{'success':false,'message':data['message'] ?? 'Kayıt başarısız'};
@@ -94,6 +169,7 @@ class ApiService{
 
         if (response.statusCode == 200) {
           await saveToken(data['token']);
+          await saveRefreshToken(data['refreshToken']);
           return {'success': true, 'data': data};
         } else {
           return {'success': false, 'message': data['message'] ?? 'Giriş başarısız'};
@@ -107,7 +183,6 @@ class ApiService{
     /// {'error': mesaj} döndürür. Backend hata gövdesi {"message": "..."} şeklinde gelir.
     static dynamic _decodeResponse(http.Response response) {
         if (response.statusCode == 401) {
-            _handleUnauthorized();
             return {'error': 'Oturumunuz sona erdi, lütfen tekrar giriş yapın.'};
         }
         final data = response.body.isEmpty ? {} : jsonDecode(response.body);
@@ -122,15 +197,13 @@ class ApiService{
 
     static Future<dynamic> authenticatedGet(String endpoint) async{
         try{
-            final token = await getToken();
-
-            final response = await http.get(
+            final response = await _sendWithAuth((token) => http.get(
                 Uri.parse('$baseUrl$endpoint'),
                 headers:{
                     'Content-Type':'application/json',
                     'Authorization':'Bearer $token',
                 },
-            );
+            ));
             return _decodeResponse(response);
         }catch(e){
             return {'error': 'Bağlantı hatası: $e'};
@@ -140,16 +213,14 @@ class ApiService{
 
     static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,) async{
         try{
-            final token = await getToken();
-
-            final response = await http.post(
+            final response = await _sendWithAuth((token) => http.post(
                 Uri.parse('$baseUrl$endpoint'),
                 headers:{
                     'Content-Type':'application/json',
                     'Authorization':'Bearer $token',
                 },
                 body:jsonEncode(body),
-            );
+            ));
             return _decodeResponse(response);
         }catch(e){
             return {'error':'Bağlantı hatası: $e'};
@@ -158,15 +229,14 @@ class ApiService{
 
     static Future<dynamic> authenticatedPut(String endpoint, Map<String, dynamic> body) async {
         try {
-            final token = await getToken();
-            final response = await http.put(
+            final response = await _sendWithAuth((token) => http.put(
                 Uri.parse('$baseUrl$endpoint'),
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer $token',
                 },
                 body: jsonEncode(body),
-            );
+            ));
             return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
@@ -175,14 +245,13 @@ class ApiService{
 
     static Future<dynamic> authenticatedDelete(String endpoint) async {
         try {
-            final token = await getToken();
-            final response = await http.delete(
+            final response = await _sendWithAuth((token) => http.delete(
                 Uri.parse('$baseUrl$endpoint'),
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer $token',
                 },
-            );
+            ));
             return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
@@ -192,20 +261,14 @@ class ApiService{
     /// Multipart file upload (PDF yükleme için)
     static Future<dynamic> authenticatedUpload(String endpoint, String filePath) async {
         try {
-            final token = await getToken();
-            final uri = Uri.parse('$baseUrl$endpoint');
-            debugPrint('[Upload] URL: $uri, Token: ${token?.substring(0, 20)}...');
-            
-            var request = http.MultipartRequest('POST', uri);
-            request.headers['Authorization'] = 'Bearer $token';
-            request.files.add(await http.MultipartFile.fromPath('file', filePath));
-
-            final streamedResponse = await request.send();
-            final response = await http.Response.fromStream(streamedResponse);
-
-            debugPrint('[Upload] Status: ${response.statusCode}, Body length: ${response.body.length}');
-            debugPrint('[Upload] Body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
-
+            final response = await _sendWithAuth((token) async {
+                final uri = Uri.parse('$baseUrl$endpoint');
+                var request = http.MultipartRequest('POST', uri);
+                request.headers['Authorization'] = 'Bearer $token';
+                request.files.add(await http.MultipartFile.fromPath('file', filePath));
+                final streamedResponse = await request.send();
+                return http.Response.fromStream(streamedResponse);
+            });
             return _decodeResponse(response);
         } catch (e) {
             debugPrint('[Upload] ERROR: $e');
