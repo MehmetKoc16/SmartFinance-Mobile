@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_tokens.dart';
 import 'core/theme/theme_controller.dart';
+import 'screens/biometric_lock_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/api_service.dart';
+import 'services/biometric_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,12 +61,20 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2)); // Splash göster
     final isLogged = await ApiService.isLoggedIn();
 
+    Widget next;
+    if (!isLogged) {
+      next = const LoginScreen();
+    } else {
+      // Biyometrik donanimi/kaydi olmayan cihazlarda kapi hic gosterilmez —
+      // yoksa o cihazdaki hicbir kullanici uygulamaya giremezdi.
+      final biometricAvailable = await BiometricService.isAvailable();
+      next = biometricAvailable ? const BiometricLockScreen() : const MainScreen();
+    }
+
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => isLogged ? const MainScreen() : const LoginScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => next),
       );
     }
   }

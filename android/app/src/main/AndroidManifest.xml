@@ -2,6 +2,7 @@
     <!-- debug/profile manifest'lerindeki INTERNET izni sadece o build tipleri icin gecerli;
          release derlemesinde bu izin burada tanimli olmadan uygulama hicbir API cagrisi yapamaz. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
         android:label="SmartFinance"
         android:name="${applicationName}"
