@@ -101,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'SmartFinance',
+                    'Wallet Mark',
                     style: jakarta(fontSize: 24, fontWeight: FontWeight.w700, color: t.text, letterSpacing: -0.3),
                   ),
                   const SizedBox(height: 4),

@@ -28,7 +28,7 @@ class SmartFinanceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeController = context.watch<ThemeController>();
     return MaterialApp(
-      title: 'SmartFinance',
+      title: 'Wallet Mark',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
@@ -88,7 +88,7 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'SmartFinance',
+              'Wallet Mark',
               style: jakarta(fontSize: 40, fontWeight: FontWeight.w800, color: t.brand),
             ),
             const SizedBox(height: 16),

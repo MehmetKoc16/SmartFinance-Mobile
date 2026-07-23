@@ -100,7 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 14),
                   Text('Hesap Oluştur', style: jakarta(fontSize: 24, fontWeight: FontWeight.w700, color: t.text, letterSpacing: -0.3)),
                   const SizedBox(height: 4),
-                  Text('SmartFinance ile paranızı akıllıca yönetin', style: TextStyle(color: t.textSec, fontSize: 14)),
+                  Text('Wallet Mark ile paranızı akıllıca yönetin', style: TextStyle(color: t.textSec, fontSize: 14)),
 
                   const SizedBox(height: 32),
 

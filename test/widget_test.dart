@@ -22,7 +22,7 @@ void main() {
       ),
     );
 
-    expect(find.text('SmartFinance'), findsOneWidget);
+    expect(find.text('Wallet Mark'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     // Acilis ekranindaki 2 saniyelik gecikmeyi bekleyip token kontrolunun

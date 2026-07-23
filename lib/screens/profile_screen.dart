@@ -615,7 +615,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
 
                     const SizedBox(height: 20),
-                    Text('SmartFinance v1.0.0', style: TextStyle(color: t.textTert, fontSize: 12)),
+                    Text('Wallet Mark v1.0.0', style: TextStyle(color: t.textTert, fontSize: 12)),
                   ],
                 ),
               ),
