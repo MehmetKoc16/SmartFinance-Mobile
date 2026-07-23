@@ -7,6 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';    //Token'ı telef
 class ApiService{
     static const String baseUrl = 'http://10.0.2.2:5059/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
 
+    // Sunucuya hic ulasilamadigi (ag donuk, yanlis adres vb.) durumlarda
+    // istegin sinirsiz beklemesini engeller — aksi halde kullanici ekranda
+    // sonsuza dek "yukleniyor" durumunda kalabilir.
+    static const Duration _timeout = Duration(seconds: 15);
+    static const Duration _uploadTimeout = Duration(seconds: 60);
+
     // MaterialApp'e bağlanır (main.dart); ekran/context'e bağlı olmadan
     // her yerden login ekranına yönlendirebilmek için kullanılır.
     static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -70,7 +76,7 @@ class ApiService{
                     Uri.parse('$baseUrl/auth/logout'),
                     headers: {'Content-Type': 'application/json'},
                     body: jsonEncode({'refreshToken': refreshToken}),
-                );
+                ).timeout(_timeout);
             } catch (_) {
                 // Best-effort — bağlantı yoksa bile yerel oturumu kapatmaya devam et.
             }
@@ -90,7 +96,7 @@ class ApiService{
                 Uri.parse('$baseUrl/auth/refresh'),
                 headers: {'Content-Type': 'application/json'},
                 body: jsonEncode({'refreshToken': refreshToken}),
-            );
+            ).timeout(_timeout);
             if (response.statusCode != 200) return false;
             final data = jsonDecode(response.body);
             await saveToken(data['token']);
@@ -135,7 +141,7 @@ class ApiService{
                     'email' : email,
                     'password' : password,
                 }),
-            );
+            ).timeout(_timeout);
 
             final data = jsonDecode(response.body);
 
@@ -163,7 +169,7 @@ class ApiService{
             'email': email,
             'password': password,
           }),
-        );
+        ).timeout(_timeout);
 
         final data = jsonDecode(response.body);
 
@@ -203,7 +209,7 @@ class ApiService{
                     'Content-Type':'application/json',
                     'Authorization':'Bearer $token',
                 },
-            ));
+            ).timeout(_timeout));
             return _decodeResponse(response);
         }catch(e){
             return {'error': 'Bağlantı hatası: $e'};
@@ -220,7 +226,7 @@ class ApiService{
                     'Authorization':'Bearer $token',
                 },
                 body:jsonEncode(body),
-            ));
+            ).timeout(_timeout));
             return _decodeResponse(response);
         }catch(e){
             return {'error':'Bağlantı hatası: $e'};
@@ -236,7 +242,7 @@ class ApiService{
                     'Authorization': 'Bearer $token',
                 },
                 body: jsonEncode(body),
-            ));
+            ).timeout(_timeout));
             return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
@@ -251,7 +257,7 @@ class ApiService{
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer $token',
                 },
-            ));
+            ).timeout(_timeout));
             return _decodeResponse(response);
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
@@ -266,7 +272,7 @@ class ApiService{
                 var request = http.MultipartRequest('POST', uri);
                 request.headers['Authorization'] = 'Bearer $token';
                 request.files.add(await http.MultipartFile.fromPath('file', filePath));
-                final streamedResponse = await request.send();
+                final streamedResponse = await request.send().timeout(_uploadTimeout);
                 return http.Response.fromStream(streamedResponse);
             });
             return _decodeResponse(response);
