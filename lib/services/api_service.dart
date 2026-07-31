@@ -201,7 +201,7 @@ class ApiService{
         return {'error': message};
     }
 
-    static Future<dynamic> authenticatedGet(String endpoint) async{
+    static Future<dynamic> authenticatedGet(String endpoint, {Duration? timeout}) async{
         try{
             final response = await _sendWithAuth((token) => http.get(
                 Uri.parse('$baseUrl$endpoint'),
@@ -209,7 +209,7 @@ class ApiService{
                     'Content-Type':'application/json',
                     'Authorization':'Bearer $token',
                 },
-            ).timeout(_timeout));
+            ).timeout(timeout ?? _timeout));
             return _decodeResponse(response);
         }catch(e){
             return {'error': 'Bağlantı hatası: $e'};

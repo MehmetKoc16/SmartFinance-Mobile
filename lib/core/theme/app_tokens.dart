@@ -23,6 +23,15 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color amberSoft;
   final Color navBg;
   final Color inputBg;
+  // Sadece indikatör çizgilerini ayırt etmek için — 30+ göstergeden aynı anda
+  // seçilebilenler (overlay'ler fiyat grafiğine birlikte biner) birbirinden
+  // ayrılabilsin diye eklendi, ana marka renklerinin (brand/green/red/amber)
+  // dışında kalan tamamlayıcı tonlar.
+  final Color purple;
+  final Color teal;
+  final Color cyan;
+  final Color pink;
+  final Color indigo;
 
   const AppTokens({
     required this.bg,
@@ -44,6 +53,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.amberSoft,
     required this.navBg,
     required this.inputBg,
+    required this.purple,
+    required this.teal,
+    required this.cyan,
+    required this.pink,
+    required this.indigo,
   });
 
   static const light = AppTokens(
@@ -66,6 +80,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
     amberSoft: Color(0x1AB45309),
     navBg: Color(0xDBFFFFFF),
     inputBg: Color(0xFFF0F2F5),
+    purple: Color(0xFF7C3AED),
+    teal: Color(0xFF0D9488),
+    cyan: Color(0xFF0891B2),
+    pink: Color(0xFFDB2777),
+    indigo: Color(0xFF4F46E5),
   );
 
   static const dark = AppTokens(
@@ -88,6 +107,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
     amberSoft: Color(0x29FBBF24),
     navBg: Color(0xDB151A23),
     inputBg: Color(0xFF11151D),
+    purple: Color(0xFFA78BFA),
+    teal: Color(0xFF2DD4BF),
+    cyan: Color(0xFF22D3EE),
+    pink: Color(0xFFF472B6),
+    indigo: Color(0xFF818CF8),
   );
 
   static AppTokens of(BuildContext context) =>
@@ -100,6 +124,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? brand, Color? brandDeep, Color? brandSoft,
     Color? green, Color? greenSoft, Color? red, Color? redSoft,
     Color? amber, Color? amberSoft, Color? navBg, Color? inputBg,
+    Color? purple, Color? teal, Color? cyan, Color? pink, Color? indigo,
   }) {
     return AppTokens(
       bg: bg ?? this.bg,
@@ -121,6 +146,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
       amberSoft: amberSoft ?? this.amberSoft,
       navBg: navBg ?? this.navBg,
       inputBg: inputBg ?? this.inputBg,
+      purple: purple ?? this.purple,
+      teal: teal ?? this.teal,
+      cyan: cyan ?? this.cyan,
+      pink: pink ?? this.pink,
+      indigo: indigo ?? this.indigo,
     );
   }
 
@@ -147,6 +177,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
       amberSoft: Color.lerp(amberSoft, other.amberSoft, t)!,
       navBg: Color.lerp(navBg, other.navBg, t)!,
       inputBg: Color.lerp(inputBg, other.inputBg, t)!,
+      purple: Color.lerp(purple, other.purple, t)!,
+      teal: Color.lerp(teal, other.teal, t)!,
+      cyan: Color.lerp(cyan, other.cyan, t)!,
+      pink: Color.lerp(pink, other.pink, t)!,
+      indigo: Color.lerp(indigo, other.indigo, t)!,
     );
   }
 }

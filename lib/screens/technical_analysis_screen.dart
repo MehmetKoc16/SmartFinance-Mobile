@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_type_colors.dart';
+import '../core/constants/indicator_catalog.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
@@ -23,19 +25,57 @@ class TechnicalAnalysisScreen extends StatefulWidget {
   State<TechnicalAnalysisScreen> createState() => _TechnicalAnalysisScreenState();
 }
 
+class _LineSpec {
+  final String valueKey;
+  final String label;
+  final Color color;
+  final bool dashed;
+  const _LineSpec(this.valueKey, this.label, this.color, {this.dashed = false});
+}
+
 class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
+  static const _prefsKey = 'selected_indicators';
+
+  // Osilator turundeki gostergelerden sinir degeri (asiri alim/satim) olanlarin
+  // sabit Y ekseni araligi ve referans cizgileri.
+  static const Map<String, (double, double)> _fixedYRange = {
+    'rsi': (0, 100), 'stoch': (0, 100), 'stochrsi': (0, 100), 'mfi': (0, 100),
+    'williamsr': (-100, 0),
+  };
+  static const Map<String, (double, double)> _refLines = {
+    'rsi': (70, 30), 'stoch': (80, 20), 'stochrsi': (80, 20), 'mfi': (80, 20),
+    'williamsr': (-20, -80),
+  };
+
   Map<String, dynamic>? _data;
   bool _isLoading = true;
   String? _error;
 
-  bool _priceOpen = true;
-  bool _rsiOpen = false;
-  bool _macdOpen = false;
+  Set<String> _selectedIndicators = {};
+  final Set<String> _openSections = {'_price'};
+
+  bool get _isFund => widget.investment?['investmentType'] == 'fund';
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _init();
+  }
+
+  Future<void> _init() async {
+    if (!_isFund) {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_prefsKey);
+      _selectedIndicators = (saved != null && saved.isNotEmpty)
+          ? saved.toSet()
+          : Set.from(IndicatorCatalog.defaultSelected);
+    }
+    await _loadData();
+  }
+
+  Future<void> _saveIndicatorPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefsKey, _selectedIndicators.toList());
   }
 
   Future<void> _loadData() async {
@@ -43,8 +83,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       _isLoading = true;
       _error = null;
     });
+    final indicatorsParam = _selectedIndicators.isEmpty ? '' : '&indicators=${_selectedIndicators.join(',')}';
     final result = await ApiService.authenticatedGet(
-      '/investment/${widget.investmentId}/technical-analysis?days=180',
+      '/investment/${widget.investmentId}/technical-analysis?days=180$indicatorsParam',
+      // TEFAS (fon) saglayicisi kendi hiz siniri korumasi icin parcalar
+      // arasi bilerek 11sn bekliyor (180 gunluk sorgu ~80sn surebilir) —
+      // genel 15sn varsayilanindan cok daha uzun bir sure gerekiyor.
+      timeout: const Duration(seconds: 100),
     );
     if (!mounted) return;
     if (result is Map && result.containsKey('error')) {
@@ -160,9 +205,8 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
 
   Widget _buildContent(AppTokens t) {
     final priceBars = (_data!['priceBars'] as List).cast<Map<String, dynamic>>();
-    final rsiPoints = (_data!['rsi'] as List).cast<Map<String, dynamic>>();
-    final macdPoints = ((_data!['macd'] as Map)['points'] as List).cast<Map<String, dynamic>>();
-    final bbPoints = ((_data!['bollingerBands'] as Map)['points'] as List).cast<Map<String, dynamic>>();
+    final indicatorSeries = (_data!['indicators'] as List).cast<Map<String, dynamic>>();
+    final statistics = _data!['statistics'] as Map<String, dynamic>?;
 
     if (priceBars.isEmpty) {
       return Center(
@@ -177,6 +221,10 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     final lastClose = (priceBars.last['close'] as num).toDouble();
     final prevClose = priceBars.length > 1 ? (priceBars[priceBars.length - 2]['close'] as num).toDouble() : lastClose;
     final dayChange = prevClose == 0 ? 0.0 : (lastClose - prevClose) / prevClose * 100;
+
+    final overlaySeries = indicatorSeries.where((s) => IndicatorCatalog.byKey(s['key'])?.category == 'trend').toList();
+    final oscillatorSeries =
+        indicatorSeries.where((s) => IndicatorCatalog.byKey(s['key'])?.category != 'trend').toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,32 +251,197 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
 
         _indicatorSection(
           t,
-          title: 'Fiyat & Bollinger Bantları',
-          open: _priceOpen,
-          onToggle: () => setState(() => _priceOpen = !_priceOpen),
-          chart: _buildPriceChart(t, priceBars, bbPoints),
+          sectionKey: '_price',
+          title: 'Fiyat Grafiği',
+          chart: _buildPriceChart(t, priceBars, overlaySeries),
         ),
-        _indicatorSection(
-          t,
-          title: 'RSI (14)',
-          open: _rsiOpen,
-          onToggle: () => setState(() => _rsiOpen = !_rsiOpen),
-          chart: _buildRsiChart(t, rsiPoints),
-        ),
-        _indicatorSection(
-          t,
-          title: 'MACD (12, 26, 9)',
-          open: _macdOpen,
-          onToggle: () => setState(() => _macdOpen = !_macdOpen),
-          chart: Column(children: [
-            _buildMacdChart(t, macdPoints),
-            const SizedBox(height: 10),
-            _buildMacdHistogram(t, macdPoints),
-          ]),
-        ),
+
+        for (final series in oscillatorSeries)
+          if (series['key'] == 'macd')
+            _indicatorSection(
+              t,
+              sectionKey: 'macd',
+              title: 'MACD (12,26,9)',
+              chart: Column(children: [
+                _buildMacdChart(t, (series['points'] as List).cast<Map<String, dynamic>>()),
+                const SizedBox(height: 10),
+                _buildMacdHistogram(t, (series['points'] as List).cast<Map<String, dynamic>>()),
+              ]),
+            )
+          else
+            _indicatorSection(
+              t,
+              sectionKey: series['key'] as String,
+              title: IndicatorCatalog.byKey(series['key'] as String)?.name ?? series['key'] as String,
+              chart: _buildOscillatorChart(t, series),
+            ),
+
+        if (!_isFund) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showIndicatorPicker,
+              icon: Icon(LucideIcons.slidersHorizontal, size: 16, color: t.brand),
+              label: Text('Gösterge Ekle/Çıkar', style: TextStyle(color: t.brand, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: t.border),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        if (statistics != null) _buildStatsGrid(t, statistics),
 
         const SizedBox(height: 6),
         if (widget.investment != null) _buildPositionSummary(t, widget.investment!),
+      ],
+    );
+  }
+
+  void _showIndicatorPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTokens.of(context).card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final t = AppTokens.of(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Göstergeler', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+                    const SizedBox(height: 16),
+                    for (final cat in IndicatorCatalog.categoryOrder) ...[
+                      Text(IndicatorCatalog.categoryLabel[cat]!,
+                          style: TextStyle(color: t.textSec, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: IndicatorCatalog.all.where((d) => d.category == cat).map((def) {
+                          final isSelected = _selectedIndicators.contains(def.key);
+                          return GestureDetector(
+                            onTap: () {
+                              setSheetState(() {
+                                if (isSelected) {
+                                  _selectedIndicators.remove(def.key);
+                                } else {
+                                  _selectedIndicators.add(def.key);
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? t.brandSoft : t.card,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: isSelected ? t.brand : t.border, width: isSelected ? 2 : 1),
+                              ),
+                              child: Text(def.name,
+                                  style: TextStyle(
+                                      color: t.text,
+                                      fontSize: 12.5,
+                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      _saveIndicatorPreferences();
+      _loadData();
+    });
+  }
+
+  Widget _buildStatsGrid(AppTokens t, Map<String, dynamic> stats) {
+    final rows = <(String, String)>[];
+    void addRow(String label, String key, String Function(num) fmt) {
+      final v = stats[key] as num?;
+      if (v == null) return;
+      rows.add((label, fmt(v)));
+    }
+
+    addRow('Açılış', 'open', (v) => formatTRY(v));
+    addRow('Önceki kapanış', 'previousClose', (v) => formatTRY(v));
+    addRow('En yüksek', 'dayHigh', (v) => formatTRY(v));
+    addRow('En düşük', 'dayLow', (v) => formatTRY(v));
+    addRow('52 hafta en yüksek', 'fiftyTwoWeekHigh', (v) => formatTRY(v));
+    addRow('52 hafta en düşük', 'fiftyTwoWeekLow', (v) => formatTRY(v));
+    addRow('Ortalama hacim', 'averageVolume', (v) => formatCompactNumber(v));
+    addRow('Piyasa değeri', 'marketCap', (v) => '₺${formatCompactNumber(v)}');
+    addRow('F/K', 'trailingPE', (v) => v.toStringAsFixed(2));
+    addRow('PD/DD', 'priceToBook', (v) => v.toStringAsFixed(2));
+    addRow('Özsermaye değeri', 'equityValue', (v) => '₺${formatCompactNumber(v)}');
+    addRow('Özsermaye karlılık', 'returnOnEquity', (v) => formatPercent(v));
+    addRow('FAVÖK', 'ebitda', (v) => '₺${formatCompactNumber(v)}');
+    addRow('Net kar marj', 'profitMargin', (v) => formatPercent(v));
+    addRow('Brüt kar marj', 'grossMargin', (v) => formatPercent(v));
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final pairedRows = <List<(String, String)>>[];
+    for (int i = 0; i < rows.length; i += 2) {
+      pairedRows.add(rows.sublist(i, (i + 2 > rows.length) ? rows.length : i + 2));
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: t.card, border: Border.all(color: t.border), borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('İstatistikler', style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          for (final pair in pairedRows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _statCell(t, pair[0].$1, pair[0].$2)),
+                  const SizedBox(width: 12),
+                  Expanded(child: pair.length > 1 ? _statCell(t, pair[1].$1, pair[1].$2) : const SizedBox()),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statCell(AppTokens t, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: t.textSec, fontSize: 11.5)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(color: t.text, fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -284,11 +497,11 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
 
   Widget _indicatorSection(
     AppTokens t, {
+    required String sectionKey,
     required String title,
-    required bool open,
-    required VoidCallback onToggle,
     required Widget chart,
   }) {
+    final open = _openSections.contains(sectionKey);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -300,7 +513,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       child: Column(
         children: [
           InkWell(
-            onTap: onToggle,
+            onTap: () => setState(() {
+              if (open) {
+                _openSections.remove(sectionKey);
+              } else {
+                _openSections.add(sectionKey);
+              }
+            }),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               child: Row(
@@ -318,27 +537,88 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     );
   }
 
-  Widget _buildPriceChart(AppTokens t, List<Map<String, dynamic>> priceBars, List<Map<String, dynamic>> bbPoints) {
+  // Trend kategorisindeki gostergeler fiyat grafigine bindirilecek cizgi
+  // tanimlari — anahtar/renk eslesmesi burada tek yerden yonetiliyor.
+  Map<String, List<_LineSpec>> _overlayLineSpecs(AppTokens t) => {
+        'sma20': [_LineSpec('value', 'SMA20', t.purple)],
+        'sma50': [_LineSpec('value', 'SMA50', t.indigo)],
+        'ema20': [_LineSpec('value', 'EMA20', t.teal)],
+        'ema50': [_LineSpec('value', 'EMA50', t.cyan)],
+        'bollinger': [
+          _LineSpec('upper', 'BB Üst', t.amber, dashed: true),
+          _LineSpec('lower', 'BB Alt', t.amber, dashed: true),
+        ],
+        'keltner': [
+          _LineSpec('upper', 'Keltner Üst', t.pink, dashed: true),
+          _LineSpec('lower', 'Keltner Alt', t.pink, dashed: true),
+        ],
+        'donchian': [
+          _LineSpec('upper', 'Donchian Üst', t.teal, dashed: true),
+          _LineSpec('lower', 'Donchian Alt', t.teal, dashed: true),
+        ],
+        'supertrend': [_LineSpec('value', 'SuperTrend', t.green)],
+        'psar': [_LineSpec('value', 'PSAR', t.red)],
+        'vwap': [_LineSpec('value', 'VWAP', t.indigo)],
+      };
+
+  // Osilator paneli olarak ayrı gösterilen gostergelerin cizgi tanimlari.
+  Map<String, List<_LineSpec>> _oscillatorLineSpecs(AppTokens t) => {
+        'rsi': [_LineSpec('value', 'RSI', t.brand)],
+        'stoch': [_LineSpec('k', '%K', t.brand), _LineSpec('d', '%D', t.amber)],
+        'stochrsi': [_LineSpec('value', 'StochRSI', t.brand), _LineSpec('signal', 'Sinyal', t.amber)],
+        'cci': [_LineSpec('value', 'CCI', t.brand)],
+        'williamsr': [_LineSpec('value', 'Williams %R', t.brand)],
+        'roc': [_LineSpec('value', 'ROC', t.brand)],
+        'ultimate': [_LineSpec('value', 'Ultimate', t.brand)],
+        'awesome': [_LineSpec('value', 'Awesome', t.brand)],
+        'trix': [_LineSpec('value', 'TRIX', t.brand)],
+        'fisher': [_LineSpec('value', 'Fisher', t.brand)],
+        'tsi': [_LineSpec('value', 'TSI', t.brand), _LineSpec('signal', 'Sinyal', t.amber)],
+        'adx': [_LineSpec('adx', 'ADX', t.brand), _LineSpec('pdi', '+DI', t.green), _LineSpec('mdi', '-DI', t.red)],
+        'aroon': [_LineSpec('up', 'Aroon Up', t.green), _LineSpec('down', 'Aroon Down', t.red)],
+        'vortex': [_LineSpec('viplus', 'VI+', t.green), _LineSpec('viminus', 'VI-', t.red)],
+        'atr': [_LineSpec('value', 'ATR', t.brand)],
+        'stddev': [_LineSpec('value', 'Std Sapma', t.brand)],
+        'obv': [_LineSpec('value', 'OBV', t.brand)],
+        'mfi': [_LineSpec('value', 'MFI', t.brand)],
+        'cmf': [_LineSpec('value', 'CMF', t.brand)],
+        'adl': [_LineSpec('value', 'ADL', t.brand)],
+        'chaikinosc': [_LineSpec('value', 'Chaikin Osc', t.brand)],
+        'forceindex': [_LineSpec('value', 'Force Index', t.brand)],
+      };
+
+  Widget _buildPriceChart(AppTokens t, List<Map<String, dynamic>> priceBars, List<Map<String, dynamic>> overlaySeries) {
     final closeSpots = <FlSpot>[
       for (int i = 0; i < priceBars.length; i++)
         FlSpot(i.toDouble(), (priceBars[i]['close'] as num).toDouble()),
     ];
-    final upperSpots = <FlSpot>[
-      for (int i = 0; i < bbPoints.length; i++)
-        if (_asDouble(bbPoints[i]['upperBand']) != null)
-          FlSpot(i.toDouble(), _asDouble(bbPoints[i]['upperBand'])!),
-    ];
-    final lowerSpots = <FlSpot>[
-      for (int i = 0; i < bbPoints.length; i++)
-        if (_asDouble(bbPoints[i]['lowerBand']) != null)
-          FlSpot(i.toDouble(), _asDouble(bbPoints[i]['lowerBand'])!),
-    ];
 
-    final allValues = [
-      ...closeSpots.map((s) => s.y),
-      ...upperSpots.map((s) => s.y),
-      ...lowerSpots.map((s) => s.y),
-    ];
+    final overlayLines = <LineChartBarData>[];
+    final allValues = <double>[...closeSpots.map((s) => s.y)];
+    final specs = _overlayLineSpecs(t);
+
+    for (final series in overlaySeries) {
+      final key = series['key'] as String;
+      final points = (series['points'] as List).cast<Map<String, dynamic>>();
+      for (final spec in specs[key] ?? const <_LineSpec>[]) {
+        final spots = <FlSpot>[
+          for (int i = 0; i < points.length; i++)
+            if (_asDouble((points[i]['values'] as Map)[spec.valueKey]) != null)
+              FlSpot(i.toDouble(), _asDouble((points[i]['values'] as Map)[spec.valueKey])!),
+        ];
+        if (spots.isEmpty) continue;
+        allValues.addAll(spots.map((s) => s.y));
+        overlayLines.add(LineChartBarData(
+          spots: spots,
+          isCurved: false,
+          color: spec.color.withValues(alpha: 0.8),
+          barWidth: 1.5,
+          dotData: const FlDotData(show: false),
+          dashArray: spec.dashed ? [6, 4] : null,
+        ));
+      }
+    }
+
     final minY = allValues.reduce((a, b) => a < b ? a : b);
     final maxY = allValues.reduce((a, b) => a > b ? a : b);
     final padding = (maxY - minY) * 0.05;
@@ -356,22 +636,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           borderData: FlBorderData(show: false),
           lineTouchData: const LineTouchData(enabled: false),
           lineBarsData: [
-            LineChartBarData(
-              spots: upperSpots,
-              isCurved: false,
-              color: t.amber.withValues(alpha: 0.5),
-              barWidth: 1.5,
-              dotData: const FlDotData(show: false),
-              dashArray: [6, 4],
-            ),
-            LineChartBarData(
-              spots: lowerSpots,
-              isCurved: false,
-              color: t.amber.withValues(alpha: 0.5),
-              barWidth: 1.5,
-              dotData: const FlDotData(show: false),
-              dashArray: [6, 4],
-            ),
+            ...overlayLines,
             LineChartBarData(
               spots: closeSpots,
               isCurved: false,
@@ -385,29 +650,65 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     );
   }
 
-  Widget _buildRsiChart(AppTokens t, List<Map<String, dynamic>> rsiPoints) {
-    final spots = <FlSpot>[
-      for (int i = 0; i < rsiPoints.length; i++)
-        if (_asDouble(rsiPoints[i]['value']) != null) FlSpot(i.toDouble(), _asDouble(rsiPoints[i]['value'])!),
-    ];
+  Widget _buildOscillatorChart(AppTokens t, Map<String, dynamic> series) {
+    final key = series['key'] as String;
+    final points = (series['points'] as List).cast<Map<String, dynamic>>();
+    final specs = _oscillatorLineSpecs(t)[key] ??
+        [_LineSpec('value', IndicatorCatalog.byKey(key)?.name ?? key, t.brand)];
+
+    final allValues = <double>[];
+    final lines = <LineChartBarData>[];
+    for (final spec in specs) {
+      final spots = <FlSpot>[
+        for (int i = 0; i < points.length; i++)
+          if (_asDouble((points[i]['values'] as Map)[spec.valueKey]) != null)
+            FlSpot(i.toDouble(), _asDouble((points[i]['values'] as Map)[spec.valueKey])!),
+      ];
+      if (spots.isEmpty) continue;
+      allValues.addAll(spots.map((s) => s.y));
+      lines.add(LineChartBarData(
+        spots: spots,
+        isCurved: false,
+        color: spec.color,
+        barWidth: 2,
+        dotData: const FlDotData(show: false),
+      ));
+    }
+
+    double minY, maxY;
+    final fixedRange = _fixedYRange[key];
+    if (fixedRange != null) {
+      minY = fixedRange.$1;
+      maxY = fixedRange.$2;
+    } else if (allValues.isNotEmpty) {
+      final rawMin = allValues.reduce((a, b) => a < b ? a : b);
+      final rawMax = allValues.reduce((a, b) => a > b ? a : b);
+      final pad = (rawMax - rawMin).abs() * 0.1 + 0.0001;
+      minY = rawMin - pad;
+      maxY = rawMax + pad;
+    } else {
+      minY = 0;
+      maxY = 1;
+    }
+
+    final refLine = _refLines[key];
 
     return SizedBox(
       height: 170,
       child: LineChart(
         LineChartData(
           minX: 0,
-          maxX: (rsiPoints.length - 1).toDouble(),
-          minY: 0,
-          maxY: 100,
+          maxX: (points.length - 1).clamp(0, double.infinity).toDouble(),
+          minY: minY,
+          maxY: maxY,
           gridData: _gridData(t),
           titlesData: FlTitlesData(
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 32,
-                interval: 25,
-                getTitlesWidget: (v, meta) =>
-                    Text(v.toInt().toString(), style: TextStyle(color: t.textTert, fontSize: 10)),
+                reservedSize: 42,
+                getTitlesWidget: (v, meta) => Text(v.abs() >= 1000 ? v.toStringAsFixed(0) : v.toStringAsFixed(1),
+                    style: TextStyle(color: t.textTert, fontSize: 10)),
               ),
             ),
             bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -416,19 +717,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           ),
           borderData: FlBorderData(show: false),
           lineTouchData: const LineTouchData(enabled: false),
-          extraLinesData: ExtraLinesData(horizontalLines: [
-            HorizontalLine(y: 70, color: t.red.withValues(alpha: 0.4), strokeWidth: 1, dashArray: [4, 4]),
-            HorizontalLine(y: 30, color: t.green.withValues(alpha: 0.4), strokeWidth: 1, dashArray: [4, 4]),
-          ]),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: false,
-              color: t.brand,
-              barWidth: 2,
-              dotData: const FlDotData(show: false),
-            ),
-          ],
+          extraLinesData: refLine != null
+              ? ExtraLinesData(horizontalLines: [
+                  HorizontalLine(y: refLine.$1, color: t.red.withValues(alpha: 0.4), strokeWidth: 1, dashArray: [4, 4]),
+                  HorizontalLine(y: refLine.$2, color: t.green.withValues(alpha: 0.4), strokeWidth: 1, dashArray: [4, 4]),
+                ])
+              : const ExtraLinesData(),
+          lineBarsData: lines,
         ),
       ),
     );
@@ -437,11 +732,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   Widget _buildMacdChart(AppTokens t, List<Map<String, dynamic>> macdPoints) {
     final macdSpots = <FlSpot>[
       for (int i = 0; i < macdPoints.length; i++)
-        if (_asDouble(macdPoints[i]['macd']) != null) FlSpot(i.toDouble(), _asDouble(macdPoints[i]['macd'])!),
+        if (_asDouble((macdPoints[i]['values'] as Map)['macd']) != null)
+          FlSpot(i.toDouble(), _asDouble((macdPoints[i]['values'] as Map)['macd'])!),
     ];
     final signalSpots = <FlSpot>[
       for (int i = 0; i < macdPoints.length; i++)
-        if (_asDouble(macdPoints[i]['signal']) != null) FlSpot(i.toDouble(), _asDouble(macdPoints[i]['signal'])!),
+        if (_asDouble((macdPoints[i]['values'] as Map)['signal']) != null)
+          FlSpot(i.toDouble(), _asDouble((macdPoints[i]['values'] as Map)['signal'])!),
     ];
 
     return SizedBox(
@@ -489,13 +786,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   Widget _buildMacdHistogram(AppTokens t, List<Map<String, dynamic>> macdPoints) {
     final barGroups = <BarChartGroupData>[
       for (int i = 0; i < macdPoints.length; i++)
-        if (_asDouble(macdPoints[i]['histogram']) != null)
+        if (_asDouble((macdPoints[i]['values'] as Map)['histogram']) != null)
           BarChartGroupData(
             x: i,
             barRods: [
               BarChartRodData(
-                toY: _asDouble(macdPoints[i]['histogram'])!,
-                color: _asDouble(macdPoints[i]['histogram'])! >= 0 ? t.green : t.red,
+                toY: _asDouble((macdPoints[i]['values'] as Map)['histogram'])!,
+                color: _asDouble((macdPoints[i]['values'] as Map)['histogram'])! >= 0 ? t.green : t.red,
                 width: 2,
               ),
             ],
