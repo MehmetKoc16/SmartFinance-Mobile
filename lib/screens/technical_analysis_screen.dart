@@ -47,14 +47,32 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     'williamsr': (-20, -80),
   };
 
+  static const List<(String, String)> _allRanges = [
+    ('1d', '1G'), ('1w', '1H'), ('1m', '1A'), ('6m', '6A'),
+    ('ytd', 'YBB'), ('1y', '1Y'), ('5y', '5Y'),
+  ];
+
   Map<String, dynamic>? _data;
   bool _isLoading = true;
   String? _error;
 
   Set<String> _selectedIndicators = {};
   final Set<String> _openSections = {'_price'};
+  String _selectedRange = '6m';
 
   bool get _isFund => widget.investment?['investmentType'] == 'fund';
+
+  // "1 Gun" gercek gun-ici (saatlik) veri gerektiriyor — sadece hisse/kripto
+  // saglayicilarinda mumkun. Doviz/altin resmi olarak gunde bir (altin ayda
+  // bir) yayinlaniyor, fon gunde bir NAV — gun-ici veri hicbir sekilde yok.
+  // TEFAS ayrica kendi hiz siniri korumasi yuzunden uzun araliklarda cok
+  // yavas (1Yil ~2.5dk, 5Yil ~12dk), o yuzden fon 6 Ay'a kadar sinirli.
+  List<(String, String)> _availableRanges() {
+    final type = widget.investment?['investmentType'];
+    if (type == 'fund') return _allRanges.where((r) => ['1w', '1m', '6m'].contains(r.$1)).toList();
+    if (type == 'currency' || type == 'gold') return _allRanges.where((r) => r.$1 != '1d').toList();
+    return _allRanges;
+  }
 
   @override
   void initState() {
@@ -85,7 +103,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     });
     final indicatorsParam = _selectedIndicators.isEmpty ? '' : '&indicators=${_selectedIndicators.join(',')}';
     final result = await ApiService.authenticatedGet(
-      '/investment/${widget.investmentId}/technical-analysis?days=180$indicatorsParam',
+      '/investment/${widget.investmentId}/technical-analysis?range=$_selectedRange$indicatorsParam',
       // TEFAS (fon) saglayicisi kendi hiz siniri korumasi icin parcalar
       // arasi bilerek 11sn bekliyor (180 gunluk sorgu ~80sn surebilir) —
       // genel 15sn varsayilanindan cok daha uzun bir sure gerekiyor.
@@ -247,7 +265,9 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _buildRangeSelector(t),
+        const SizedBox(height: 12),
 
         _indicatorSection(
           t,
@@ -495,6 +515,43 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     );
   }
 
+  Widget _buildRangeSelector(AppTokens t) {
+    final ranges = _availableRanges();
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: ranges.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final (key, label) = ranges[i];
+          final isSelected = _selectedRange == key;
+          return GestureDetector(
+            onTap: isSelected
+                ? null
+                : () {
+                    setState(() => _selectedRange = key);
+                    _loadData();
+                  },
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: isSelected ? t.brand : t.inputBg,
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: Text(label,
+                  style: TextStyle(
+                      color: isSelected ? Colors.white : t.textSec,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600)),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _indicatorSection(
     AppTokens t, {
     required String sectionKey,
@@ -632,7 +689,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           minY: minY - padding,
           maxY: maxY + padding,
           gridData: _gridData(t),
-          titlesData: _priceTitlesData(t, priceBars),
+          titlesData: _priceTitlesData(t, priceBars, isIntraday: _selectedRange == '1d'),
           borderData: FlBorderData(show: false),
           lineTouchData: const LineTouchData(enabled: false),
           lineBarsData: [
@@ -819,7 +876,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         getDrawingHorizontalLine: (value) => FlLine(color: t.textTert.withValues(alpha: 0.15), strokeWidth: 1),
       );
 
-  FlTitlesData _priceTitlesData(AppTokens t, List<Map<String, dynamic>> priceBars) {
+  FlTitlesData _priceTitlesData(AppTokens t, List<Map<String, dynamic>> priceBars, {bool isIntraday = false}) {
     return FlTitlesData(
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
@@ -838,9 +895,12 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             if (idx < 0 || idx >= priceBars.length) return const SizedBox();
             final date = DateTime.tryParse(priceBars[idx]['date'] as String);
             if (date == null) return const SizedBox();
+            final label = isIntraday
+                ? '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
+                : '${date.day}/${date.month}';
             return Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text('${date.day}/${date.month}', style: TextStyle(color: t.textTert, fontSize: 9)),
+              child: Text(label, style: TextStyle(color: t.textTert, fontSize: 9)),
             );
           },
         ),
