@@ -16,6 +16,7 @@ class CategoriesScreen extends StatefulWidget {
 class _CategoriesScreenState extends State<CategoriesScreen> {
   List<dynamic> _categories = [];
   Map<int, double> _spendByCategory = {};
+  Map<int, Map<String, dynamic>> _budgetByCategory = {};
   bool _isLoading = true;
 
   @override
@@ -37,10 +38,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           '/transaction/filter?page=1&pageSize=100'
           '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
         ),
+        ApiService.authenticatedGet('/budget/status/${now.year}/${now.month}'),
       ]);
 
       final categories = results[0];
       final txResponse = results[1];
+      final budgetResponse = results[2];
 
       final Map<int, double> spend = {};
       if (txResponse is Map && txResponse['items'] is List) {
@@ -52,10 +55,20 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         }
       }
 
+      final Map<int, Map<String, dynamic>> budgets = {};
+      if (budgetResponse is List) {
+        for (final b in budgetResponse) {
+          if (b is Map && b['categoryId'] != null) {
+            budgets[b['categoryId'] as int] = Map<String, dynamic>.from(b);
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _categories = categories is List ? categories : [];
           _spendByCategory = spend;
+          _budgetByCategory = budgets;
           _isLoading = false;
         });
       }
@@ -241,6 +254,133 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
+  void _showBudgetDialog(dynamic cat) {
+    final t = AppTokens.of(context);
+    final budget = _budgetByCategory[cat['id']];
+    final limitController = TextEditingController(
+      text: budget != null ? (budget['monthlyLimit'] as num).toStringAsFixed(0) : '',
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('${cat['name']} — Aylık Limit',
+                style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.text)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: limitController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(color: t.text),
+              decoration: const InputDecoration(hintText: 'Aylık limit (₺)'),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final limit = double.tryParse(limitController.text.replaceAll(',', '.'));
+                  if (limit == null || limit <= 0) return;
+                  Navigator.pop(ctx);
+                  final result = await ApiService.authenticatedPost('/budget', {
+                    'categoryId': cat['id'],
+                    'monthlyLimit': limit,
+                  });
+                  if (result is Map && result.containsKey('error')) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result['error']),
+                          backgroundColor: t.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  _loadData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Bütçe limiti kaydedildi.'),
+                        backgroundColor: t.green,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Kaydet'),
+              ),
+            ),
+            if (budget != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: TextButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final result = await ApiService.authenticatedDelete('/budget/${budget['id']}');
+                    if (result is Map && result.containsKey('error')) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(result['error']),
+                            backgroundColor: t.red,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    _loadData();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Bütçe limiti kaldırıldı.'),
+                          backgroundColor: t.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text('Limiti Kaldır', style: TextStyle(color: t.red)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _budgetColor(AppTokens t, Map<String, dynamic> budget) {
+    final ratio = (budget['ratio'] as num).toDouble();
+    if (ratio >= 1) return t.red;
+    if (ratio >= 0.8) return t.amber;
+    return t.green;
+  }
+
   void _showDeleteConfirmation(dynamic category) {
     final t = AppTokens.of(context);
     showDialog(
@@ -361,45 +501,83 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final style = CategoryStyles.resolve(cat['name'] ?? '', icon: cat['icon'], color: cat['color']);
     final isIncome = cat['type'] == 1;
     final spend = _spendByCategory[cat['id']] ?? 0;
+    final budget = _budgetByCategory[cat['id']];
 
     return GestureDetector(
       onLongPress: () => _showDeleteConfirmation(cat),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: style.color.withValues(alpha: isDark ? 0.22 : 0.13),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(style.icon, color: style.color, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(cat['name'] ?? 'Kategori', style: TextStyle(color: t.text, fontSize: 14.5, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isIncome ? t.greenSoft : t.redSoft,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      isIncome ? 'Gelir' : 'Gider',
-                      style: TextStyle(color: isIncome ? t.green : t.red, fontSize: 10.5, fontWeight: FontWeight.w700),
-                    ),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: style.color.withValues(alpha: isDark ? 0.22 : 0.13),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(style.icon, color: style.color, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(cat['name'] ?? 'Kategori', style: TextStyle(color: t.text, fontSize: 14.5, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isIncome ? t.greenSoft : t.redSoft,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          isIncome ? 'Gelir' : 'Gider',
+                          style: TextStyle(color: isIncome ? t.green : t.red, fontSize: 10.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(formatTRY(spend), style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                if (!isIncome) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _showBudgetDialog(cat),
+                    child: Icon(LucideIcons.target, size: 17, color: budget != null ? t.brand : t.textTert),
                   ),
                 ],
-              ),
+              ],
             ),
-            Text(formatTRY(spend), style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+            if (budget != null) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(left: 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (budget['ratio'] as num).toDouble().clamp(0, 1),
+                        minHeight: 5,
+                        backgroundColor: t.divider,
+                        valueColor: AlwaysStoppedAnimation<Color>(_budgetColor(t, budget)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${formatTRY(budget['spent'] as num)} / ${formatTRY(budget['monthlyLimit'] as num)}',
+                      style: TextStyle(color: t.textTert, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
