@@ -4,6 +4,7 @@
 // olmayan bir 'MyApp' sinifina referans veriyordu, derlenmiyordu bile).
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,9 @@ import 'package:smartfinance_mobile/main.dart';
 void main() {
   testWidgets('Uygulama cakmadan acilir ve acilis ekranini gosterir', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
+    // Oturum token'lari artik guvenli depoda tutuluyor; acilis ekrani bunu
+    // okudugu icin testte de sahte deger kumesi kurulmali.
+    FlutterSecureStorage.setMockInitialValues({});
 
     await tester.pumpWidget(
       ChangeNotifierProvider(

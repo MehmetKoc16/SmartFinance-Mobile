@@ -1,11 +1,28 @@
 import 'dart:convert';   //Json verileri okumak için
 import 'package:flutter/widgets.dart';   //GlobalKey<NavigatorState> ve debugPrint için
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';    //Token'ları şifreli saklamak için
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
-import 'package:shared_preferences/shared_preferences.dart';    //Token'ı telefonun hafızasına kaydetmek için
+import 'package:shared_preferences/shared_preferences.dart';    //Eski sürümden token taşıma (migration) için
 
 class ApiService{
     static const String baseUrl = 'http://10.0.2.2:5059/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
+
+    // Oturum token'ları cihazda şifreli saklanır: Android'de Keystore destekli
+    // EncryptedSharedPreferences, iOS'ta Keychain. Düz SharedPreferences'ta
+    // tutulsalardı root'lanmış bir cihazda veya cihaz yedeği çıkarılarak
+    // okunabilir, başkasının hesabına erişim için kullanılabilirlerdi.
+    static const _tokenKey = 'auth_token';
+    static const _refreshTokenKey = 'refresh_token';
+
+    // Android tarafında ek ayar verilmiyor: paketin v10 sürümü Keystore destekli
+    // kendi şifrelemesini varsayılan olarak uyguluyor (eski
+    // encryptedSharedPreferences seçeneği Google Jetpack Security'yi bıraktığı
+    // için kullanımdan kaldırıldı).
+    static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+        // "this_device": token cihaz yedeğiyle başka bir cihaza taşınmaz.
+        iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+    );
 
     // Sunucuya hic ulasilamadigi (ag donuk, yanlis adres vb.) durumlarda
     // istegin sinirsiz beklemesini engeller — aksi halde kullanici ekranda
@@ -34,30 +51,64 @@ class ApiService{
         _isRedirectingToLogin = false;
     }
 
+    // Uygulamanın önceki sürümü token'ları düz metin olarak SharedPreferences'ta
+    // tutuyordu. Güncellemeden sonra bu kullanıcıların oturumu kapanmasın diye
+    // eski değerler bir kez güvenli depoya taşınır ve düz metin kopya silinir.
+    static bool _legacyMigrationDone = false;
+
+    @visibleForTesting
+    static void resetLegacyMigrationForTest() => _legacyMigrationDone = false;
+
+    static Future<void> _migrateLegacyTokensIfNeeded() async {
+        if (_legacyMigrationDone) return;
+        _legacyMigrationDone = true;
+        try {
+            final prefs = await SharedPreferences.getInstance();
+            for (final key in [_tokenKey, _refreshTokenKey]) {
+                final legacyValue = prefs.getString(key);
+                if (legacyValue == null) continue;
+                // Güvenli depoda geçerli bir değer varsa eski (muhtemelen daha
+                // bayat) kopya onu ezmemeli; bu durumda sadece düz metni sil.
+                final existing = await _secureStorage.read(key: key);
+                if (existing == null) {
+                    await _secureStorage.write(key: key, value: legacyValue);
+                }
+                await prefs.remove(key);
+            }
+        } catch (_) {
+            // Taşıma başarısız olursa kullanıcı yalnızca tekrar giriş yapar;
+            // bu, uygulamanın açılışını engellemekten iyidir.
+        }
+    }
+
     static Future<void> saveToken(String token) async {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token',token);
+        await _secureStorage.write(key: _tokenKey, value: token);
     }
 
     static Future<String?> getToken() async{
-        final prefs=await SharedPreferences.getInstance();
-        return prefs.getString('auth_token');
+        await _migrateLegacyTokensIfNeeded();
+        return _secureStorage.read(key: _tokenKey);
     }
 
     static Future<void> saveRefreshToken(String refreshToken) async {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('refresh_token', refreshToken);
+        await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
     }
 
     static Future<String?> getRefreshToken() async {
-        final prefs = await SharedPreferences.getInstance();
-        return prefs.getString('refresh_token');
+        await _migrateLegacyTokensIfNeeded();
+        return _secureStorage.read(key: _refreshTokenKey);
     }
 
     static Future<void> removeToken() async{
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('auth_token');
-        await prefs.remove('refresh_token');
+        await _secureStorage.delete(key: _tokenKey);
+        await _secureStorage.delete(key: _refreshTokenKey);
+        // Taşıma hiç çalışmamış olabileceği ihtimaline karşı eski düz metin
+        // kopyalar da temizlenir — çıkış yapan kullanıcının token'ı cihazda kalmasın.
+        try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove(_tokenKey);
+            await prefs.remove(_refreshTokenKey);
+        } catch (_) {}
     }
 
     static Future<bool> isLoggedIn() async{

@@ -23,7 +23,10 @@ android {
         applicationId = "com.smartfinance.smartfinance_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // flutter_secure_storage en az API 23 istiyor. Oturum token'larini
+        // Keystore destekli sifreli depoda tutabilmek icin Android 5.x (API 21-22)
+        // destegi birakildi; API 23 (Android 6.0, 2015) ve ustu desteklenir.
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
