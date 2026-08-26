@@ -6,7 +6,10 @@ import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Eski sürümden token taşıma (migration) için
 
 class ApiService{
-    static const String baseUrl = 'http://10.0.2.2:5059/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
+    // Canlı sunucu (Hetzner + Caddy, Let's Encrypt sertifikalı).
+    // Yerel geliştirme için: Android emülatörde 'http://10.0.2.2:5059/api',
+    // USB'yle bağlı fiziksel cihazda 'adb reverse tcp:5059 tcp:5059' + 'http://localhost:5059/api'.
+    static const String baseUrl = 'https://api.walletmark.com.tr/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
 
     // Oturum token'ları cihazda şifreli saklanır: Android'de Keystore destekli
     // EncryptedSharedPreferences, iOS'ta Keychain. Düz SharedPreferences'ta
