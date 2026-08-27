@@ -81,7 +81,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final t = AppTokens.of(context);
     final isEdit = investment != null;
     final nameCtrl = TextEditingController(text: investment?['name'] ?? '');
-    final fullNameCtrl = TextEditingController(text: investment?['fullName'] ?? '');
     final purchasePriceCtrl = TextEditingController(
         text: investment != null ? '${investment['purchasePrice'] ?? ''}' : '');
     final quantityCtrl = TextEditingController(
@@ -99,9 +98,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Tam ad sorulmuyor: sunucu, fiyat sorgusunun yanıtından
+                // otomatik dolduruyor. Kullanıcıdan yalnızca sembol isteniyor.
                 _buildTextField(t, nameCtrl, 'Sembol (örn: THYAO)'),
-                const SizedBox(height: 10),
-                _buildTextField(t, fullNameCtrl, 'Tam Ad (örn: Türk Hava Yolları)'),
                 const SizedBox(height: 10),
                 _buildTextField(t, purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
                 const SizedBox(height: 10),
@@ -134,8 +133,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || purchasePriceCtrl.text.isEmpty) return;
                 final body = {
-                  'name': nameCtrl.text,
-                  'fullName': fullNameCtrl.text,
+                  'name': nameCtrl.text.trim().toUpperCase(),
                   'purchasePrice': double.tryParse(purchasePriceCtrl.text.replaceAll(',', '.')) ?? 0,
                   'quantity': double.tryParse(quantityCtrl.text.replaceAll(',', '.')) ?? 0,
                   'investmentType': selectedType,
@@ -158,10 +156,22 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 }
                 if (mounted) Navigator.pop(this.context);
                 _loadData();
+                // Sunucu aynı semboldan tekrar alımda yeni kayıt açmıyor,
+                // mevcut pozisyona ekleyip maliyeti ağırlıklı ortalamaya
+                // çekiyor. Kullanıcı ne olduğunu görebilsin diye yeni
+                // ortalama maliyet mesajda gösteriliyor.
+                final merged = result is Map && result['merged'] == true;
+                final newAvg = result is Map
+                    ? (result['purchasePrice'] as num?)?.toDouble()
+                    : null;
                 if (mounted) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
-                      content: Text(isEdit ? 'Yatırım güncellendi.' : 'Yatırım eklendi.'),
+                      content: Text(isEdit
+                          ? 'Yatırım güncellendi.'
+                          : merged && newAvg != null
+                              ? 'Mevcut pozisyona eklendi. Yeni ortalama maliyet: ${formatTRY(newAvg)}'
+                              : 'Yatırım eklendi.'),
                       backgroundColor: t.green,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
