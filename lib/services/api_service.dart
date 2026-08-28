@@ -30,6 +30,14 @@ class ApiService{
     // Sunucuya hic ulasilamadigi (ag donuk, yanlis adres vb.) durumlarda
     // istegin sinirsiz beklemesini engeller — aksi halde kullanici ekranda
     // sonsuza dek "yukleniyor" durumunda kalabilir.
+    // HTTP istemcisi tek bir yerden veriliyor: testlerde sahte bir istemciyle
+    // degistirilebilsin diye. Aksi halde token yenileme davranisi ancak gercek
+    // sunucuya baglanarak dogrulanabilirdi.
+    static http.Client _client = http.Client();
+
+    @visibleForTesting
+    static set httpClientForTest(http.Client client) => _client = client;
+
     static const Duration _timeout = Duration(seconds: 15);
     static const Duration _uploadTimeout = Duration(seconds: 60);
 
@@ -126,7 +134,7 @@ class ApiService{
         final refreshToken = await getRefreshToken();
         if (refreshToken != null) {
             try {
-                await http.post(
+                await _client.post(
                     Uri.parse('$baseUrl/auth/logout'),
                     headers: {'Content-Type': 'application/json'},
                     body: jsonEncode({'refreshToken': refreshToken}),
@@ -138,15 +146,47 @@ class ApiService{
         await removeToken();
     }
 
+    // Devam eden yenileme işlemi. Aynı anda birden fazla istek 401 alırsa
+    // hepsi BU işlemi paylaşır, her biri ayrı ayrı yenileme denemez.
+    //
+    // Neden gerekli: ana ekran açılışta 6 isteği aynı anda gönderiyor. Erişim
+    // token'ının süresi dolmuşsa altısı da 401 dönüyordu ve altısı da aynı
+    // refresh token'la yenileme deniyordu. Backend rotasyon uyguladığı için
+    // ilk deneme token'ı iptal ediyor, kalan beşi "iptal edilmiş token" hatası
+    // alıp oturumu kapatıyordu — kullanıcı geçerli bir oturumu varken
+    // "Oturumunuz sonlandı" uyarısıyla giriş ekranına atılıyordu.
+    static Future<bool>? _refreshInFlight;
+
+    @visibleForTesting
+    static void resetRefreshStateForTest() {
+        _refreshInFlight = null;
+        // Yonlendirme kilidi de sinif duzeyinde; testler arasi sizarsa bir
+        // sonraki testte oturum kapatma hic calismamis gibi gorunur.
+        _isRedirectingToLogin = false;
+    }
+
     /// Erişim (JWT) token'inin süresi dolunca kullanıcıyı login'e düşürmeden
     /// önce saklanan refresh token ile sessizce yeni bir token çifti almayı
     /// dener. Backend rotasyon uyguladığı için (kullanılan refresh token
     /// iptal edilir) dönen yeni refresh token da kaydedilmeli.
-    static Future<bool> _tryRefreshToken() async {
+    ///
+    /// Eşzamanlı çağrılar tek bir istekte birleştirilir.
+    static Future<bool> _tryRefreshToken() {
+        final inFlight = _refreshInFlight;
+        if (inFlight != null) return inFlight;
+
+        final future = _performRefresh();
+        _refreshInFlight = future;
+        return future.whenComplete(() {
+            _refreshInFlight = null;
+        });
+    }
+
+    static Future<bool> _performRefresh() async {
         final refreshToken = await getRefreshToken();
         if (refreshToken == null) return false;
         try {
-            final response = await http.post(
+            final response = await _client.post(
                 Uri.parse('$baseUrl/auth/refresh'),
                 headers: {'Content-Type': 'application/json'},
                 body: jsonEncode({'refreshToken': refreshToken}),
@@ -171,6 +211,14 @@ class ApiService{
         final response = await send(token ?? '');
         if (response.statusCode != 401) return response;
 
+        // Bu istek yoldayken başka bir istek token'ı yenilemiş olabilir.
+        // Öyleyse yeniden yenilemeye (ve refresh token'ı bir kez daha
+        // rotasyona sokmaya) gerek yok, yalnızca yeni token'la tekrar dene.
+        final currentToken = await getToken();
+        if (currentToken != null && currentToken != token) {
+            return send(currentToken);
+        }
+
         final refreshed = await _tryRefreshToken();
         if (!refreshed) {
             await _handleUnauthorized();
@@ -187,7 +235,7 @@ class ApiService{
         required String password,
     }) async{
         try{
-            final response = await http.post(
+            final response = await _client.post(
                 Uri.parse('$baseUrl/auth/register'),
                 headers:{'Content-Type':'application/json'},
                 body: jsonEncode({
@@ -216,7 +264,7 @@ class ApiService{
       required String password,
     }) async {
       try {
-        final response = await http.post(
+        final response = await _client.post(
           Uri.parse('$baseUrl/auth/login'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
@@ -257,7 +305,7 @@ class ApiService{
 
     static Future<dynamic> authenticatedGet(String endpoint, {Duration? timeout}) async{
         try{
-            final response = await _sendWithAuth((token) => http.get(
+            final response = await _sendWithAuth((token) => _client.get(
                 Uri.parse('$baseUrl$endpoint'),
                 headers:{
                     'Content-Type':'application/json',
@@ -273,7 +321,7 @@ class ApiService{
 
     static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,) async{
         try{
-            final response = await _sendWithAuth((token) => http.post(
+            final response = await _sendWithAuth((token) => _client.post(
                 Uri.parse('$baseUrl$endpoint'),
                 headers:{
                     'Content-Type':'application/json',
@@ -289,7 +337,7 @@ class ApiService{
 
     static Future<dynamic> authenticatedPut(String endpoint, Map<String, dynamic> body) async {
         try {
-            final response = await _sendWithAuth((token) => http.put(
+            final response = await _sendWithAuth((token) => _client.put(
                 Uri.parse('$baseUrl$endpoint'),
                 headers: {
                     'Content-Type': 'application/json',
@@ -305,7 +353,7 @@ class ApiService{
 
     static Future<dynamic> authenticatedDelete(String endpoint) async {
         try {
-            final response = await _sendWithAuth((token) => http.delete(
+            final response = await _sendWithAuth((token) => _client.delete(
                 Uri.parse('$baseUrl$endpoint'),
                 headers: {
                     'Content-Type': 'application/json',
