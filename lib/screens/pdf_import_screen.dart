@@ -28,6 +28,10 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   // Kullanıcının kategorileri
   List<Map<String, dynamic>> _categories = [];
   int _savedCount = 0;
+  // Zaten kayitli oldugu icin eklenmeyen islem sayisi. Ayni ekstreyi ikinci
+  // kez yukleyen kullanici "hicbir sey olmadi" sanmasin diye sonuc
+  // ekraninda ayrica gosteriliyor.
+  int _skippedCount = 0;
 
   @override
   void initState() {
@@ -125,6 +129,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
         );
       } else {
         _savedCount = result['count'] ?? 0;
+        _skippedCount = result['skipped'] ?? 0;
         _step = 2;
       }
     });
@@ -516,10 +521,18 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
               child: Icon(LucideIcons.circleCheck, color: t.green, size: 44),
             ),
             const SizedBox(height: 24),
-            Text('$_savedCount İşlem Kaydedildi!', style: TextStyle(color: t.text, fontSize: 20, fontWeight: FontWeight.w700)),
+            Text(
+              _savedCount > 0 ? '$_savedCount İşlem Kaydedildi!' : 'İşlemler Zaten Kayıtlı',
+              style: TextStyle(color: t.text, fontSize: 20, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
             Text(
-              'İşlemler başarıyla içe aktarıldı.\nAna Sayfa\'da görüntüleyebilirsiniz.',
+              _skippedCount == 0
+                  ? 'İşlemler başarıyla içe aktarıldı.\nAna Sayfa\'da görüntüleyebilirsiniz.'
+                  : _savedCount == 0
+                      ? 'Bu ekstredeki $_skippedCount işlem daha önce eklenmişti,\ntekrar kaydedilmedi.'
+                      : '$_skippedCount işlem daha önce eklendiği için atlandı.\nAna Sayfa\'da görüntüleyebilirsiniz.',
               style: TextStyle(color: t.textSec, fontSize: 14, height: 1.5),
               textAlign: TextAlign.center,
             ),
