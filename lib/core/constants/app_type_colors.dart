@@ -10,6 +10,7 @@ class AppTypeColors {
     'crypto': Color(0xFFF97316),   // Kripto
     'currency': Color(0xFF8B5CF6), // Döviz
     'gold': Color(0xFFEAB308),     // Altın
+    'silver': Color(0xFF94A3B8),   // Gümüş
   };
 
   static const Map<String, String> investmentLabel = {
@@ -18,6 +19,7 @@ class AppTypeColors {
     'crypto': 'Kripto',
     'currency': 'Döviz',
     'gold': 'Altın',
+    'silver': 'Gümüş',
   };
 
   // Tasarım spec'i sembole özel ikon kullanıyor (THYAO->plane vb.); bizim
@@ -29,6 +31,7 @@ class AppTypeColors {
     'crypto': LucideIcons.bitcoin,
     'currency': LucideIcons.dollarSign,
     'gold': LucideIcons.circleDollarSign,
+    'silver': LucideIcons.coins,
   };
 
   static const List<Map<String, dynamic>> categoryPresets = [
