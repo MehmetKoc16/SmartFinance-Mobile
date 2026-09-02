@@ -1,4 +1,4 @@
-package com.smartfinance.smartfinance_mobile
+package com.walletmark.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

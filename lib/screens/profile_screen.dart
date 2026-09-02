@@ -237,6 +237,150 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return score.clamp(0, 4);
   }
 
+  /// Hesap silme akisi. Islem geri alinamadigi icin (a) ne silinecegi acikca
+  /// yaziliyor, (b) sifre yeniden isteniyor. Google Play, hesap olusturan
+  /// uygulamalarda uygulama icinden silme yolunu zorunlu tutuyor.
+  void _showDeleteAccountSheet() {
+    final t = AppTokens.of(context);
+    final passwordCtrl = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: t.textTert, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Icon(LucideIcons.triangleAlert, color: t.red, size: 20),
+                    const SizedBox(width: 8),
+                    Text('Hesabı Sil', style: jakarta(fontSize: 18, fontWeight: FontWeight.w700, color: t.red)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: t.redSoft, borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bu işlem geri alınamaz. Silinecekler:',
+                        style: TextStyle(color: t.red, fontWeight: FontWeight.w600, fontSize: 13.5),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '• Tüm gelir ve gider işlemleriniz\n'
+                        '• Yatırım portföyünüz\n'
+                        '• Kategorileriniz ve bütçeleriniz\n'
+                        '• Hesap bilgileriniz',
+                        style: TextStyle(color: t.textSec, fontSize: 13, height: 1.6),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text('Devam etmek için şifrenizi girin.', style: TextStyle(color: t.textSec, fontSize: 13.5)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: passwordCtrl,
+                  obscureText: true,
+                  style: TextStyle(color: t.text),
+                  decoration: InputDecoration(
+                    hintText: 'Şifreniz',
+                    prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: t.red, foregroundColor: Colors.white),
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (passwordCtrl.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Şifrenizi giriniz!'),
+                                  backgroundColor: t.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                              return;
+                            }
+                            setSheetState(() => isSubmitting = true);
+
+                            final result = await ApiService.authenticatedDelete(
+                              '/auth/account',
+                              {'password': passwordCtrl.text},
+                            );
+
+                            if (!ctx.mounted) return;
+
+                            if (result is Map && result.containsKey('error')) {
+                              setSheetState(() => isSubmitting = false);
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text(result['error'].toString()),
+                                  backgroundColor: t.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Sunucudaki veri gitti; cihazdaki oturum da temizlenmeli.
+                            await ApiService.removeToken();
+                            if (!mounted) return;
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                              (route) => false,
+                            );
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Hesabımı Kalıcı Olarak Sil', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Vazgeç', style: TextStyle(color: t.textSec)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showChangePasswordSheet() {
     final t = AppTokens.of(context);
     final currentCtrl = TextEditingController();
@@ -591,7 +735,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
                           ),
                           _settingsRow(t, LucideIcons.circleHelp, 'Yardım',
-                              onTap: _showHelpSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18), showDivider: false),
+                              onTap: _showHelpSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(t, LucideIcons.trash2, 'Hesabı Sil',
+                              onTap: _showDeleteAccountSheet,
+                              iconColor: t.red,
+                              textColor: t.red,
+                              trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
+                              showDivider: false),
                         ],
                       ),
                     ),
@@ -658,7 +808,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _settingsRow(AppTokens t, IconData icon, String title, {VoidCallback? onTap, Widget? trailing, bool showDivider = true}) {
+  // iconColor/textColor: yikici islemleri (hesap silme) kirmizi gostermek icin.
+  Widget _settingsRow(AppTokens t, IconData icon, String title,
+      {VoidCallback? onTap, Widget? trailing, bool showDivider = true, Color? iconColor, Color? textColor}) {
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -666,9 +818,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(border: showDivider ? Border(bottom: BorderSide(color: t.divider)) : null),
         child: Row(
           children: [
-            Icon(icon, color: t.textSec, size: 18),
+            Icon(icon, color: iconColor ?? t.textSec, size: 18),
             const SizedBox(width: 12),
-            Expanded(child: Text(title, style: TextStyle(color: t.text, fontSize: 14))),
+            Expanded(child: Text(title, style: TextStyle(color: textColor ?? t.text, fontSize: 14))),
             if (trailing != null) trailing,
           ],
         ),

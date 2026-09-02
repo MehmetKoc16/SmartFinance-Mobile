@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.smartfinance.smartfinance_mobile"
+    namespace = "com.walletmark.app"
     compileSdk = flutter.compileSdkVersion
 
     compileOptions {
@@ -20,7 +20,9 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.smartfinance.smartfinance_mobile"
+        // Play Store'a yuklendikten sonra ASLA degistirilemez; magaza adresinde
+        // de gorunur. Marka ve domainle (walletmark.com.tr) tutarli tutuluyor.
+        applicationId = "com.walletmark.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // flutter_secure_storage en az API 23 istiyor. Oturum token'larini

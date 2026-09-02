@@ -351,7 +351,9 @@ class ApiService{
         }
     }
 
-    static Future<dynamic> authenticatedDelete(String endpoint) async {
+    /// [body] yalnizca gerektiginde gonderilir. Hesap silme ucu, islemin geri
+    /// alinamaz olmasi nedeniyle govdede sifre dogrulamasi istiyor.
+    static Future<dynamic> authenticatedDelete(String endpoint, [Map<String, dynamic>? body]) async {
         try {
             final response = await _sendWithAuth((token) => _client.delete(
                 Uri.parse('$baseUrl$endpoint'),
@@ -359,6 +361,7 @@ class ApiService{
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer $token',
                 },
+                body: body == null ? null : jsonEncode(body),
             ).timeout(_timeout));
             return _decodeResponse(response);
         } catch (e) {
