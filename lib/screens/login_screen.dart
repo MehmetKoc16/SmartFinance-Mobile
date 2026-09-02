@@ -195,7 +195,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
-    );
+    // Alt sayfa kapaninca denetleyiciyi birak: her acilista yenisi
+    // olusturuluyor, birakilmazsa sayfa kapansa da bellekte kaliyor.
+    ).whenComplete(emailCtrl.dispose);
   }
 
   Future<void> _login() async {
