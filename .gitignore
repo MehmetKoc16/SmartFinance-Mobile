@@ -57,3 +57,9 @@ PROJE_REHBERI.md
 
 # Kisisel notlar — depoya girmemeli
 istek.txt
+
+# Yukleme anahtari — asla depoya girmemeli
+android/key.properties
+*.jks
+*.p12
+*.keystore
