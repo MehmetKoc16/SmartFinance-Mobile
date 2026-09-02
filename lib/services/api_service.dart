@@ -259,6 +259,32 @@ class ApiService{
         }
     }
 
+    /// Sifre sifirlama baglantisi ister.
+    ///
+    /// E-posta kayitli OLMASA BILE sunucu ayni yaniti donuyor; istemci de
+    /// bunu ayirt etmeye calismamali. Aksi halde uygulama bir "hesap var mi"
+    /// sorgulama araci haline gelirdi.
+    static Future<Map<String, dynamic>> forgotPassword(String email) async {
+        try {
+            final response = await _client.post(
+                Uri.parse('$baseUrl/auth/forgot-password'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'email': email}),
+            ).timeout(_timeout);
+
+            if (response.statusCode == 429) {
+                return {'success': false, 'message': 'Çok fazla deneme yapıldı. Lütfen bir dakika sonra tekrar deneyin.'};
+            }
+            if (response.statusCode == 200) {
+                return {'success': true};
+            }
+            final data = jsonDecode(response.body);
+            return {'success': false, 'message': data['message'] ?? 'İstek gönderilemedi.'};
+        } catch (e) {
+            return {'success': false, 'message': 'Bağlantı hatası: $e'};
+        }
+    }
+
     static Future<Map<String, dynamic>> login({
       required String email,
       required String password,
