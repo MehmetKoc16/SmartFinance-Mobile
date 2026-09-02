@@ -84,7 +84,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final purchasePriceCtrl = TextEditingController(
         text: investment != null ? '${investment['purchasePrice'] ?? ''}' : '');
     final quantityCtrl = TextEditingController(
-        text: investment != null ? '${investment['quantity'] ?? ''}' : '');
+        text: investment != null && investment['quantity'] != null
+            ? quantityForInput(investment['quantity'] as num)
+            : '');
     String selectedType = investment?['investmentType'] ?? 'stock';
 
     showDialog(
@@ -489,7 +491,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   Text(inv['name'] ?? '', style: TextStyle(color: t.text, fontWeight: FontWeight.w600, fontSize: 14.5)),
                   const SizedBox(height: 2),
                   Text(
-                    '${quantity.toStringAsFixed(2)} adet × ${formatTRY(purchasePrice)}',
+                    '${formatQuantity(quantity)} adet × ${formatTRY(purchasePrice)}',
                     style: TextStyle(color: t.textSec, fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

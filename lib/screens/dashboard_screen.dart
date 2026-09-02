@@ -142,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final top4 = sortedCats.take(4).toList();
       final maxSpend = top4.isNotEmpty ? top4.first.value : 1.0;
       final topSpendCats = top4.map((e) {
-        final name = _categoryMap[e.key] ?? 'Kategori';
+        final name = _categoryMap[e.key] ?? 'Silinmiş kategori';
         final style = CategoryStyles.of(name);
         return _CategorySpend(
           name: name,

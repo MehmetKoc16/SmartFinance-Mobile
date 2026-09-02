@@ -188,7 +188,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             setSheetState(() => isSubmitting = false);
 
-                            if (!mounted) return;
+                            // ctx.mounted: sayfa (this) ayakta olsa bile
+                            // kullanici alt sayfayi asagi kaydirip kapatmis
+                            // olabilir. O durumda ctx olu kaliyor ve hem
+                            // setSheetState hem Navigator.pop(ctx) hata veriyor.
+                            if (!mounted || !ctx.mounted) return;
                             if (result is Map && result.containsKey('error')) {
                               setSheetState(() => hata = result['error']?.toString() ?? 'İşlem başarısız oldu.');
                               return;
@@ -479,21 +483,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'newPassword': newCtrl.text,
                             });
 
+                            if (!mounted || !ctx.mounted) return;
                             setSheetState(() => isSubmitting = false);
 
-                            if (mounted) {
-                              if (result is Map && result.containsKey('error')) {
-                                setSheetState(() => hata = result['error']?.toString() ?? 'Mevcut şifre hatalı!');
-                              } else {
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: const Text('Şifre başarıyla değiştirildi!'),
-                                      backgroundColor: t.green,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                );
-                              }
+                            if (result is Map && result.containsKey('error')) {
+                              setSheetState(() => hata = result['error']?.toString() ?? 'Mevcut şifre hatalı!');
+                            } else {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: const Text('Şifre başarıyla değiştirildi!'),
+                                    backgroundColor: t.green,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              );
                             }
                           },
                     child: isSubmitting

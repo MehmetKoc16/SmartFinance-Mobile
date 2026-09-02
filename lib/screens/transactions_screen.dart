@@ -96,7 +96,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (catId != null && _categoryMap.containsKey(catId)) {
       return _categoryMap[catId]!;
     }
-    return '';
+    // Kategori silinmisse adi listede yok. Once bos donuluyordu: kullanici
+    // eski islemlerinin etiketinin neden kayboldugunu anlayamiyordu.
+    return catId == null ? '' : 'Silinmiş kategori';
   }
 
   void _onFilterChanged(int filter) {

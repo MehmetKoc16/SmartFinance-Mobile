@@ -25,3 +25,38 @@ String formatCompactNumber(num value) {
 String formatPercent(num value) {
   return '%${_trNumber2.format(value * 100)}';
 }
+
+/// Yatırım miktarını (adet/gram/lot) biçimlendirir.
+///
+/// Sabit 2 ondalık kullanılamıyor: kripto miktarları çok küçük olabiliyor.
+/// 0,004 BTC bugünkü kurla ~15.000 TL ediyor ama iki haneye yuvarlanınca
+/// ekranda "0,00 adet" görünüyordu — kullanıcı pozisyonunu göremiyordu.
+///
+/// Kural tek: 8 ondalığa kadar yaz (1 satoshi = 0,00000001 BTC), sondaki
+/// gereksiz sıfırları kırp. Böylece hissede "10 adet", altında "2,5 gram",
+/// kriptoda "0,00012345 adet" çıkıyor; ayrıca 8 hanede kesmek double'ın
+/// kayan nokta gürültüsünü de (0,1 + 0,2 = 0,30000000000000004) siliyor.
+String formatQuantity(num value) => _sifirlariKirp(
+      NumberFormat('#,##0.00000000', 'tr_TR').format(value),
+      ',',
+    );
+
+/// Miktarı DÜZENLEME ALANINA yazılabilir düz metne çevirir.
+///
+/// [formatQuantity] gösterim içindir: Türkçe ayraçlarla "1.234,5" üretir.
+/// Bu metin geri okunurken `replaceAll(',', '.')` ile ayrıştırıldığı için
+/// binlik noktası sayıyı bozardı. Burada binlik ayraç yok, ondalık ayraç
+/// nokta.
+///
+/// Ayrıca kayan nokta gürültüsünü kırpıyor: 0,1 + 0,2 toplamı double'da
+/// 0.30000000000000004 oluyor ve alana ham hâliyle yazılıyordu.
+String quantityForInput(num value) =>
+    _sifirlariKirp(value.toStringAsFixed(8), '.');
+
+/// Ondalık kısmın sonundaki gereksiz sıfırları atar; ondalık ayraç yalnız
+/// kalırsa onu da kaldırır. "10,00000000" -> "10", "2,50000000" -> "2,5".
+String _sifirlariKirp(String metin, String ayrac) {
+  if (!metin.contains(ayrac)) return metin;
+  metin = metin.replaceAll(RegExp(r'0+$'), '');
+  return metin.endsWith(ayrac) ? metin.substring(0, metin.length - 1) : metin;
+}

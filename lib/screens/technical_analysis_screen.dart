@@ -486,7 +486,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         children: [
           Text('Pozisyon Özeti', style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
-          _summaryRow(t, 'Adet', quantity.toStringAsFixed(2)),
+          _summaryRow(t, 'Adet', formatQuantity(quantity)),
           _summaryRow(t, 'Ortalama Maliyet', formatTRY(purchasePrice)),
           _summaryRow(t, 'Güncel Fiyat', formatTRY(currentPrice)),
           _summaryRow(

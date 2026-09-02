@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Uygulama verisi ne buluta yedeklenir ne de yeni cihaza aktarilir.
+
+  Gerekce: bu bir finans uygulamasi. Oturum token'lari Android Keystore'a
+  bagli sifreli depoda tutuluyor; bu veri baska bir cihaza kopyalandiginda
+  zaten cozulemez hale geliyor ve uygulama "bozuk oturum" durumunda aciliyor.
+  Ayrica butce/islem bilgisinin kullanicinin haberi olmadan Google hesabina
+  kopyalanmasi Play Data Safety beyanimizla da celisirdi.
+
+  Veri kaybi degil: her sey sunucuda, kullanici yeni cihazda giris yaptigi an
+  geri geliyor.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>
