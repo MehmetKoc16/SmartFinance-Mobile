@@ -644,6 +644,17 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         'forceindex': [_LineSpec('value', 'Force Index', t.brand)],
       };
 
+  /// Eksen etiketi bicimi. Sabit basamak sayisi kullanilamaz: gram altin
+  /// ~7.000 TL, bir kripto ~4,96 TL olabiliyor. Tam sayiya yuvarlanirsa
+  /// dusuk fiyatli varliklarda eksenin tamami ayni sayiyi gosterir.
+  static String _formatAxis(double value, double range) {
+    if (range >= 1000) return value.toStringAsFixed(0);
+    if (range >= 10) return value.toStringAsFixed(0);
+    if (range >= 1) return value.toStringAsFixed(1);
+    if (range >= 0.01) return value.toStringAsFixed(3);
+    return value.toStringAsFixed(5);
+  }
+
   Widget _buildPriceChart(AppTokens t, List<Map<String, dynamic>> priceBars, List<Map<String, dynamic>> overlaySeries) {
     final closeSpots = <FlSpot>[
       for (int i = 0; i < priceBars.length; i++)
@@ -651,6 +662,10 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     ];
 
     final overlayLines = <LineChartBarData>[];
+    // Cizilen her cizginin adi ve rengi: grafigin altindaki aciklama satiri
+    // bundan uretiliyor. Aciklama olmadan kullanici sari kesikli cizginin
+    // Bollinger bandi oldugunu bilemiyordu.
+    final legend = <_LineSpec>[];
     final allValues = <double>[...closeSpots.map((s) => s.y)];
     final specs = _overlayLineSpecs(t);
 
@@ -665,6 +680,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         ];
         if (spots.isEmpty) continue;
         allValues.addAll(spots.map((s) => s.y));
+        legend.add(spec);
         overlayLines.add(LineChartBarData(
           spots: spots,
           isCurved: false,
@@ -679,31 +695,137 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     final minY = allValues.reduce((a, b) => a < b ? a : b);
     final maxY = allValues.reduce((a, b) => a > b ? a : b);
     final padding = (maxY - minY) * 0.05;
+    final range = maxY - minY;
 
-    return SizedBox(
-      height: 220,
-      child: LineChart(
-        LineChartData(
-          minX: 0,
-          maxX: (priceBars.length - 1).toDouble(),
-          minY: minY - padding,
-          maxY: maxY + padding,
-          gridData: _gridData(t),
-          titlesData: _priceTitlesData(t, priceBars, isIntraday: _selectedRange == '1d'),
-          borderData: FlBorderData(show: false),
-          lineTouchData: const LineTouchData(enabled: false),
-          lineBarsData: [
-            ...overlayLines,
-            LineChartBarData(
-              spots: closeSpots,
-              isCurved: false,
-              color: t.brand,
-              barWidth: 2,
-              dotData: const FlDotData(show: false),
+    // Donem basina gore yukselis mi dusus mu: cizgi rengi ve alan dolgusu
+    // buna gore yesil/kirmizi. Kullanici grafige bakar bakmaz yonu gorsun.
+    final yukselis = closeSpots.isNotEmpty && closeSpots.last.y >= closeSpots.first.y;
+    final cizgiRengi = yukselis ? t.green : t.red;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 220,
+          child: LineChart(
+            LineChartData(
+              minX: 0,
+              maxX: (priceBars.length - 1).toDouble(),
+              minY: minY - padding,
+              maxY: maxY + padding,
+              gridData: _gridData(t),
+              titlesData: _priceTitlesData(t, priceBars,
+                  isIntraday: _selectedRange == '1d', range: range),
+              borderData: FlBorderData(show: false),
+              // Dokunulan noktanin tarihi ve degeri gosteriliyor. Kapaliyken
+              // kullanici grafikten tek bir somut sayi okuyamiyordu.
+              lineTouchData: LineTouchData(
+                enabled: true,
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => t.card,
+                  tooltipBorder: BorderSide(color: t.border),
+                  tooltipRoundedRadius: 10,
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (touchedSpots) {
+                    return touchedSpots.map((spot) {
+                      // Fiyat cizgisi en son eklendigi icin bar index'i son sirada.
+                      final fiyatCizgisiMi = spot.barIndex == overlayLines.length;
+                      final ad = fiyatCizgisiMi
+                          ? 'Fiyat'
+                          : (spot.barIndex < legend.length ? legend[spot.barIndex].label : '');
+                      final renk = fiyatCizgisiMi ? cizgiRengi : legend[spot.barIndex].color;
+
+                      // Tarih yalnizca ilk satirda yazilsin, tekrar etmesin.
+                      String? tarih;
+                      if (spot == touchedSpots.first) {
+                        final idx = spot.x.toInt();
+                        if (idx >= 0 && idx < priceBars.length) {
+                          final d = DateTime.tryParse(priceBars[idx]['date'] as String);
+                          if (d != null) {
+                            tarih = _selectedRange == '1d'
+                                ? '${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'
+                                : '${d.day}/${d.month}/${d.year}';
+                          }
+                        }
+                      }
+
+                      return LineTooltipItem(
+                        tarih != null ? '$tarih\n' : '',
+                        TextStyle(color: t.textSec, fontSize: 11, fontWeight: FontWeight.w500),
+                        children: [
+                          TextSpan(
+                            text: '$ad  ${formatTRY(spot.y)}',
+                            style: TextStyle(color: renk, fontSize: 12.5, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                        textAlign: TextAlign.left,
+                      );
+                    }).toList();
+                  },
+                ),
+                getTouchedSpotIndicator: (barData, indexes) => indexes
+                    .map((_) => TouchedSpotIndicatorData(
+                          FlLine(color: t.textTert, strokeWidth: 1, dashArray: [4, 3]),
+                          FlDotData(
+                            getDotPainter: (s, p, bar, i) => FlDotCirclePainter(
+                              radius: 4, color: bar.color ?? t.brand,
+                              strokeWidth: 2, strokeColor: t.card,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              lineBarsData: [
+                ...overlayLines,
+                LineChartBarData(
+                  spots: closeSpots,
+                  isCurved: false,
+                  color: cizgiRengi,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                  // Cizginin altini hafifce boyamak yonu ve buyuklugu
+                  // cikplak cizgiden cok daha okunur kiliyor.
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [cizgiRengi.withValues(alpha: 0.22), cizgiRengi.withValues(alpha: 0.0)],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 10),
+        _chartLegend(t, cizgiRengi, legend),
+      ],
+    );
+  }
+
+  /// Grafikte hangi cizginin ne oldugunu soyleyen aciklama satiri.
+  Widget _chartLegend(AppTokens t, Color priceColor, List<_LineSpec> overlays) {
+    Widget oge(String label, Color color, {bool dashed = false}) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomPaint(
+              size: const Size(16, 2),
+              painter: _LegendLinePainter(color: color, dashed: dashed),
+            ),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(color: t.textSec, fontSize: 11.5)),
+          ],
+        );
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      children: [
+        oge('Fiyat', priceColor),
+        for (final spec in overlays) oge(spec.label, spec.color, dashed: spec.dashed),
+      ],
     );
   }
 
@@ -876,13 +998,21 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         getDrawingHorizontalLine: (value) => FlLine(color: t.textTert.withValues(alpha: 0.15), strokeWidth: 1),
       );
 
-  FlTitlesData _priceTitlesData(AppTokens t, List<Map<String, dynamic>> priceBars, {bool isIntraday = false}) {
+  FlTitlesData _priceTitlesData(AppTokens t, List<Map<String, dynamic>> priceBars,
+      {bool isIntraday = false, double range = 0}) {
     return FlTitlesData(
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          reservedSize: 44,
-          getTitlesWidget: (v, meta) => Text(v.toStringAsFixed(0), style: TextStyle(color: t.textTert, fontSize: 10)),
+          reservedSize: 52,
+          // Interval verilmezse fl_chart kendi araligini seciyor ve sinir
+          // etiketleriyle cakisiyor: eksende "150" ile "131" ust uste biniyordu.
+          interval: range > 0 ? range / 4 : null,
+          getTitlesWidget: (v, meta) => Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Text(_formatAxis(v, range),
+                style: TextStyle(color: t.textTert, fontSize: 10)),
+          ),
         ),
       ),
       bottomTitles: AxisTitles(
@@ -909,4 +1039,40 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
     );
   }
+}
+
+/// Aciklama satirindaki kucuk cizgi ornegi. Kesikli cizgiyi de temsil
+/// edebilmesi gerektigi icin Container yerine CustomPaint kullaniliyor.
+class _LegendLinePainter extends CustomPainter {
+  final Color color;
+  final bool dashed;
+
+  _LegendLinePainter({required this.color, required this.dashed});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    if (!dashed) {
+      canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), paint);
+      return;
+    }
+    const cizgi = 4.0, bosluk = 3.0;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(
+        Offset(x, size.height / 2),
+        Offset((x + cizgi).clamp(0, size.width), size.height / 2),
+        paint,
+      );
+      x += cizgi + bosluk;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LegendLinePainter old) =>
+      old.color != color || old.dashed != dashed;
 }

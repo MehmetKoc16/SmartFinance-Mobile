@@ -120,6 +120,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameCtrl = TextEditingController(text: _userName);
     final emailCtrl = TextEditingController(text: _userEmail);
     bool isSubmitting = false;
+    // Ayni gerekce: modal alt sayfada SnackBar klavyenin arkasinda kaliyor.
+    String? hata;
 
     showModalBottomSheet(
       context: context,
@@ -161,6 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: InputDecoration(hintText: 'ornek@eposta.com', prefixIcon: Icon(LucideIcons.mail, color: t.textTert, size: 18)),
                 ),
                 const SizedBox(height: 22),
+                _sheetError(t, hata),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -169,17 +172,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? null
                         : () async {
                             if (nameCtrl.text.trim().isEmpty || emailCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: const Text('Tüm alanları doldurunuz!'),
-                                    backgroundColor: t.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                              );
+                              setSheetState(() => hata = 'Tüm alanları doldurunuz!');
                               return;
                             }
 
-                            setSheetState(() => isSubmitting = true);
+                            setSheetState(() {
+                              isSubmitting = true;
+                              hata = null;
+                            });
 
                             final result = await ApiService.authenticatedPut('/auth/profile', {
                               'fullName': nameCtrl.text.trim(),
@@ -190,13 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             if (!mounted) return;
                             if (result is Map && result.containsKey('error')) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text(result['error']),
-                                    backgroundColor: t.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                              );
+                              setSheetState(() => hata = result['error']?.toString() ?? 'İşlem başarısız oldu.');
                               return;
                             }
 
@@ -244,6 +238,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final t = AppTokens.of(context);
     final passwordCtrl = TextEditingController();
     bool isSubmitting = false;
+    // Ayni gerekce: alt sayfada SnackBar gorunmuyor.
+    String? hata;
 
     showModalBottomSheet(
       context: context,
@@ -308,6 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 22),
+                _sheetError(t, hata),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -317,17 +314,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? null
                         : () async {
                             if (passwordCtrl.text.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Şifrenizi giriniz!'),
-                                  backgroundColor: t.red,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              );
+                              setSheetState(() => hata = 'Şifrenizi giriniz!');
                               return;
                             }
-                            setSheetState(() => isSubmitting = true);
+                            setSheetState(() {
+                              isSubmitting = true;
+                              hata = null;
+                            });
 
                             final result = await ApiService.authenticatedDelete(
                               '/auth/account',
@@ -338,14 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             if (result is Map && result.containsKey('error')) {
                               setSheetState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(
-                                  content: Text(result['error'].toString()),
-                                  backgroundColor: t.red,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              );
+                              setSheetState(() => hata = result['error'].toString());
                               return;
                             }
 
@@ -387,6 +373,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     bool isSubmitting = false;
+    // Hata mesaji sayfanin ICINDE gosteriliyor. SnackBar ekranin en altina
+    // ciziliyor ve modal alt sayfa + klavye orayi tamamen kapatiyor: mesaj
+    // gosteriliyor ama kullaniciya hic ulasmiyordu.
+    String? hata;
     int strength = 0;
 
     const strengthColors = ['red', 'red', 'amber', 'green', 'green'];
@@ -458,6 +448,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: InputDecoration(hintText: 'Yeni şifre (tekrar)', prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18)),
                 ),
                 const SizedBox(height: 22),
+                _sheetError(t, hata),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -466,37 +457,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? null
                         : () async {
                             if (currentCtrl.text.isEmpty || newCtrl.text.isEmpty || confirmCtrl.text.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: const Text('Tüm alanları doldurunuz!'),
-                                    backgroundColor: t.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                              );
+                              setSheetState(() => hata = 'Tüm alanları doldurunuz!');
                               return;
                             }
                             if (newCtrl.text.length < 6) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: const Text('Yeni şifre en az 6 karakter olmalıdır!'),
-                                    backgroundColor: t.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                              );
+                              setSheetState(() => hata = 'Yeni şifre en az 6 karakter olmalıdır!');
                               return;
                             }
                             if (newCtrl.text != confirmCtrl.text) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: const Text('Yeni şifreler eşleşmiyor!'),
-                                    backgroundColor: t.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                              );
+                              setSheetState(() => hata = 'Yeni şifreler eşleşmiyor!');
                               return;
                             }
 
-                            setSheetState(() => isSubmitting = true);
+                            setSheetState(() {
+                              isSubmitting = true;
+                              hata = null;
+                            });
 
                             final result = await ApiService.authenticatedPut('/auth/change-password', {
                               'currentPassword': currentCtrl.text,
@@ -507,13 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             if (mounted) {
                               if (result is Map && result.containsKey('error')) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text(result['error'] ?? 'Mevcut şifre hatalı!'),
-                                      backgroundColor: t.red,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                );
+                                setSheetState(() => hata = result['error']?.toString() ?? 'Mevcut şifre hatalı!');
                               } else {
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -809,6 +779,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // iconColor/textColor: yikici islemleri (hesap silme) kirmizi gostermek icin.
+  /// Alt sayfa icindeki hata mesaji.
+  ///
+  /// Neden SnackBar degil: SnackBar ekranin en altina ciziliyor, modal alt
+  /// sayfa ve acik klavye orayi tamamen kapatiyor. Mesaj gosteriliyordu ama
+  /// kullaniciya hic ulasmiyordu — "butona basiyorum hicbir sey olmuyor"
+  /// sikayetinin sebebi buydu.
+  Widget _sheetError(AppTokens t, String? hata) {
+    if (hata == null) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: t.redSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: t.red.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.circleAlert, color: t.red, size: 17),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(hata, style: TextStyle(color: t.red, fontSize: 13.5, height: 1.35)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _settingsRow(AppTokens t, IconData icon, String title,
       {VoidCallback? onTap, Widget? trailing, bool showDivider = true, Color? iconColor, Color? textColor}) {
     return InkWell(
