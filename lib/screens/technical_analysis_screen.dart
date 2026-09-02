@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -644,6 +645,17 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         'forceindex': [_LineSpec('value', 'Force Index', t.brand)],
       };
 
+  /// Eksen icin "yuvarlak" bir adim secer: 1, 2, 2.5, 5 veya 10'un onluk
+  /// katlari. Ham aralik/4 kullanilirsa 41,3 gibi adimlar cikiyor ve etiketler
+  /// okunaksiz oluyor.
+  static double _niceStep(double rawStep) {
+    if (rawStep <= 0) return 1;
+    final buyukluk = math.pow(10, (math.log(rawStep) / math.ln10).floor()).toDouble();
+    final oran = rawStep / buyukluk;
+    final carpan = oran <= 1 ? 1.0 : oran <= 2 ? 2.0 : oran <= 2.5 ? 2.5 : oran <= 5 ? 5.0 : 10.0;
+    return carpan * buyukluk;
+  }
+
   /// Eksen etiketi bicimi. Sabit basamak sayisi kullanilamaz: gram altin
   /// ~7.000 TL, bir kripto ~4,96 TL olabiliyor. Tam sayiya yuvarlanirsa
   /// dusuk fiyatli varliklarda eksenin tamami ayni sayiyi gosterir.
@@ -692,9 +704,15 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       }
     }
 
-    final minY = allValues.reduce((a, b) => a < b ? a : b);
-    final maxY = allValues.reduce((a, b) => a > b ? a : b);
-    final padding = (maxY - minY) * 0.05;
+    final hamMin = allValues.reduce((a, b) => a < b ? a : b);
+    final hamMax = allValues.reduce((a, b) => a > b ? a : b);
+
+    // Eksen sinirlari adimin katlarina yuvarlanIyor. Aksi halde fl_chart,
+    // araliga gore yerlestirdigi etiketlerin USTUNE bir de eksenin uc
+    // degerlerini yaziyor ve ikisi ust uste biniyordu (463 ile 452 gibi).
+    final adim = _niceStep((hamMax - hamMin) / 4);
+    final minY = (hamMin / adim).floorToDouble() * adim;
+    final maxY = (hamMax / adim).ceilToDouble() * adim;
     final range = maxY - minY;
 
     // Donem basina gore yukselis mi dusus mu: cizgi rengi ve alan dolgusu
@@ -711,11 +729,11 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             LineChartData(
               minX: 0,
               maxX: (priceBars.length - 1).toDouble(),
-              minY: minY - padding,
-              maxY: maxY + padding,
+              minY: minY,
+              maxY: maxY,
               gridData: _gridData(t),
               titlesData: _priceTitlesData(t, priceBars,
-                  isIntraday: _selectedRange == '1d', range: range),
+                  isIntraday: _selectedRange == '1d', range: range, step: adim),
               borderData: FlBorderData(show: false),
               // Dokunulan noktanin tarihi ve degeri gosteriliyor. Kapaliyken
               // kullanici grafikten tek bir somut sayi okuyamiyordu.
@@ -999,7 +1017,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       );
 
   FlTitlesData _priceTitlesData(AppTokens t, List<Map<String, dynamic>> priceBars,
-      {bool isIntraday = false, double range = 0}) {
+      {bool isIntraday = false, double range = 0, double step = 0}) {
     return FlTitlesData(
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
@@ -1007,7 +1025,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           reservedSize: 52,
           // Interval verilmezse fl_chart kendi araligini seciyor ve sinir
           // etiketleriyle cakisiyor: eksende "150" ile "131" ust uste biniyordu.
-          interval: range > 0 ? range / 4 : null,
+          interval: step > 0 ? step : null,
           getTitlesWidget: (v, meta) => Padding(
             padding: const EdgeInsets.only(right: 6),
             child: Text(_formatAxis(v, range),
