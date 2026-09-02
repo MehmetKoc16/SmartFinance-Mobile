@@ -51,3 +51,9 @@ PROJE_REHBERI.md
 *.pdf
 *.xlsx
 *.xls
+
+# Claude Code yerel calisma alani (agent worktree'leri, oturum ayarlari)
+.claude/
+
+# Kisisel notlar — depoya girmemeli
+istek.txt
