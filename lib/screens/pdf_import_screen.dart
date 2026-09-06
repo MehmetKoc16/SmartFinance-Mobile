@@ -33,6 +33,13 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   // ekraninda ayrica gosteriliyor.
   int _skippedCount = 0;
 
+  /// Dosya okunamadiginda gosterilecek yonlendirme. null ise hata yok.
+  ///
+  /// SnackBar yerine tam ekran: kullanici ekstresini yukledi, bekledi ve
+  /// "olmadi" cevabi aldi. Bu noktada ekranin altinda birkac saniye durup
+  /// kaybolan bir yazi yeterli degil — ne yapacagini soylemek gerekiyor.
+  _EkstreHatasi? _hata;
+
   @override
   void initState() {
     super.initState();
@@ -69,10 +76,10 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     final result = await ApiService.authenticatedUpload('/pdfimport/parse', _selectedFilePath!);
     if (!mounted) return;
 
-    final t = AppTokens.of(context);
     setState(() {
       _isLoading = false;
       _parseResult = result is Map<String, dynamic> ? result : null;
+      _hata = null;
 
       if (_parseResult != null && _parseResult!['transactions'] != null) {
         _transactions = List<Map<String, dynamic>>.from(_parseResult!['transactions']);
@@ -80,14 +87,11 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
         _selectedItems = _transactions.map((tx) => !(tx['isDuplicate'] ?? false)).toList();
         _step = 1;
       }
-    });
 
-    if (_transactions.isEmpty && mounted) {
-      final errorMsg = _parseResult?['error'] ?? _parseResult?['message'] ?? 'Dosyadan işlem çıkarılamadı.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg), backgroundColor: t.amber),
-      );
-    }
+      if (_transactions.isEmpty) {
+        _hata = _EkstreHatasi.olustur(_selectedFileName);
+      }
+    });
   }
 
   Future<void> _confirmImport() async {
@@ -154,11 +158,13 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       ),
       body: _isLoading
           ? _buildLoading(t)
-          : _step == 0
-              ? _buildFileSelection(t)
-              : _step == 1
-                  ? _buildPreview(t)
-                  : _buildResult(t),
+          : _hata != null
+              ? _buildHata(t, _hata!)
+              : _step == 0
+                  ? _buildFileSelection(t)
+                  : _step == 1
+                      ? _buildPreview(t)
+                      : _buildResult(t),
     );
   }
 
@@ -182,6 +188,110 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 const SizedBox(height: 8),
                 Text('İşlemler çıkarılıyor', style: TextStyle(color: t.textSec, fontSize: 13)),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── DOSYA OKUNAMADI ────────────────────────────────────
+
+  Widget _buildHata(AppTokens t, _EkstreHatasi hata) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 24),
+          Center(
+            child: Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: t.amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(LucideIcons.fileWarning, size: 40, color: t.amber),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text(hata.baslik,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: t.text, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Text(hata.aciklama,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: t.textSec, fontSize: 14, height: 1.55)),
+
+          if (hata.adimlar.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: t.card,
+                border: Border.all(color: t.border),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(hata.adimBasligi,
+                      style: TextStyle(color: t.text, fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 12),
+                  for (var i = 0; i < hata.adimlar.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: t.brandSoft,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text('${i + 1}',
+                              style: TextStyle(
+                                  color: t.brand, fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(hata.adimlar[i],
+                              style: TextStyle(color: t.textSec, fontSize: 13.5, height: 1.45)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 28),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _hata = null;
+                  _selectedFilePath = null;
+                  _selectedFileName = null;
+                  _parseResult = null;
+                });
+                _pickFile();
+              },
+              child: const Text('Başka Dosya Seç',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 48,
+            child: TextButton(
+              onPressed: () => setState(() => _hata = null),
+              child: Text('Geri dön', style: TextStyle(color: t.textSec, fontSize: 15)),
             ),
           ),
         ],
@@ -260,7 +370,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Halkbank, Ziraat ve diğer metin tabanlı PDF ekstreleri; Ziraat için ayrıca Excel (.xlsx) ekstre çıktısı desteklenir.',
+                    'PDF ve Excel (.xlsx) ekstreler desteklenir. Taranmış veya görüntü tabanlı PDF dosyaları okunamaz; bankanızda Excel seçeneği varsa onu tercih edin.',
                     style: TextStyle(color: t.textSec, fontSize: 12),
                   ),
                 ),
@@ -548,6 +658,62 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// Okunamayan ekstre icin kullaniciya gosterilecek metin.
+///
+/// Yonlendirme SUNUCUDAN gelen mesaja degil, kullanicinin sectigi dosyanin
+/// UZANTISINA gore secilliyor: PDF okunamadiysa cozum Excel denemek, Excel
+/// okunamadiysa cozum dogru ekrandan indirmek. Sunucu mesajini ayristirmak
+/// (metin karsilastirmak) kirilgan olurdu — mesaj degisince sessizce yanlis
+/// yonlendirme yapardik.
+class _EkstreHatasi {
+  final String baslik;
+  final String aciklama;
+  final String adimBasligi;
+  final List<String> adimlar;
+
+  const _EkstreHatasi({
+    required this.baslik,
+    required this.aciklama,
+    this.adimBasligi = '',
+    this.adimlar = const [],
+  });
+
+  static _EkstreHatasi olustur(String? dosyaAdi) {
+    final pdf = (dosyaAdi ?? '').toLowerCase().endsWith('.pdf');
+
+    if (pdf) {
+      return const _EkstreHatasi(
+        baslik: 'Bu PDF okunamadı',
+        aciklama: 'Kusura bakmayın. Dosyadaki yazılar metin değil, görüntü '
+            'olarak kaydedilmiş. Bu durumda işlemleri ayıklayamıyoruz.\n\n'
+            'Aynı ekstreyi Excel (.xlsx) olarak indirip tekrar denerseniz '
+            'sorunsuz çalışacaktır.',
+        adimBasligi: 'Excel ekstresi nasıl indirilir?',
+        adimlar: [
+          'Bankanızın mobil veya internet şubesinde Hesap Hareketleri ekranını açın.',
+          'Görmek istediğiniz tarih aralığını seçin.',
+          'İndirme biçimi olarak PDF yerine Excel (.xlsx) seçeneğini işaretleyin.',
+          'İnen dosyayı buradan yükleyin.',
+        ],
+      );
+    }
+
+    return const _EkstreHatasi(
+      baslik: 'Bu Excel dosyası okunamadı',
+      aciklama: 'Kusura bakmayın. Dosya beklediğimiz ekstre biçiminde değil, '
+          'bu yüzden işlemleri ayıklayamadık.\n\n'
+          'Bankanızın Hesap Hareketleri ekranından indirilen Excel çıktısıyla '
+          'tekrar denerseniz sorunsuz çalışacaktır.',
+      adimBasligi: 'Dikkat edilecekler',
+      adimlar: [
+        'Dosyanın bankadan indirildiği gibi, düzenlenmeden yüklendiğinden emin olun.',
+        'Hesap özeti veya dekont değil, hesap hareketleri listesi olmalı.',
+      ],
     );
   }
 }
