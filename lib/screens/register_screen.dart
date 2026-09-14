@@ -3,7 +3,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
-import 'login_screen.dart';
 import 'main_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -19,6 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   String? _errorText;
 
@@ -143,9 +143,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _confirmPasswordController,
-                    obscureText: true,
+                    obscureText: _obscureConfirmPassword,
                     style: TextStyle(color: t.text, fontSize: 15),
-                    decoration: const InputDecoration(hintText: '••••••••'),
+                    decoration: InputDecoration(
+                      hintText: '••••••••',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirmPassword ? LucideIcons.eyeOff : LucideIcons.eye, color: t.textSec, size: 18),
+                        onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
@@ -168,7 +174,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       Text('Zaten hesabın var mı? ', style: TextStyle(color: t.textSec, fontSize: 13.5)),
                       GestureDetector(
-                        onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                        // LoginScreen artik yiginda duruyor (push ile acildik) —
+                        // yeni bir tane acmak yerine ona geri donuluyor. Boylece
+                        // kullanicinin Login'de yazmis oldugu e-posta da kaybolmaz.
+                        onTap: () => Navigator.pop(context),
                         child: Text('Giriş Yap', style: TextStyle(color: t.brand, fontWeight: FontWeight.w600, fontSize: 13.5)),
                       ),
                     ],

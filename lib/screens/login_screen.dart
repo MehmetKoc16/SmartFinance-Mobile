@@ -336,7 +336,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text('Hesabın yok mu? ', style: TextStyle(color: t.textSec, fontSize: 13.5)),
                       GestureDetector(
                         onTap: () {
-                          Navigator.pushReplacement(
+                          // pushReplacement DEGIL: bu, LoginScreen'i yigindan
+                          // tamamen siliyordu. Kayit ekranindayken sistem geri
+                          // tusuna basinca pop edilecek hicbir sey kalmiyor ve
+                          // Android dogrudan uygulamayi kapatiyordu.
+                          Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const RegisterScreen()),
                           );

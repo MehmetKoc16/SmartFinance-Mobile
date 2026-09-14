@@ -413,9 +413,24 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     addRow('En düşük', 'dayLow', (v) => formatTRY(v));
     addRow('52 hafta en yüksek', 'fiftyTwoWeekHigh', (v) => formatTRY(v));
     addRow('52 hafta en düşük', 'fiftyTwoWeekLow', (v) => formatTRY(v));
-    addRow('Ortalama hacim', 'averageVolume', (v) => formatCompactNumber(v));
+    // Parantez icindeki birim bilerek eklendi: hacim burada her zaman islem
+    // goren HISSE ADEDI'dir, TL degil — birim yazilmayinca "adet mi TL mi"
+    // diye kafa karisiyordu.
+    addRow('Ortalama hacim (adet)', 'averageVolume', (v) => formatCompactNumber(v));
     addRow('Piyasa değeri', 'marketCap', (v) => '₺${formatCompactNumber(v)}');
-    addRow('F/K', 'trailingPE', (v) => v.toStringAsFixed(2));
+
+    // F/K, sayisal addRow yerine ozel ele aliniyor: sirket son 12 ayda zarar
+    // ettiyse (IsLossMaking) deger hicbir zaman gelmiyor ama bunun sebebi
+    // "veri eksik" degil "F/K matematiksel olarak tanimsiz" — kullaniciya
+    // bos birakmak yerine "Zararda" yazmak neden gorunmedigini acikliyor.
+    final trailingPE = stats['trailingPE'] as num?;
+    final zararda = stats['isLossMaking'] == true;
+    if (trailingPE != null) {
+      rows.add(('F/K', trailingPE.toStringAsFixed(2)));
+    } else if (zararda) {
+      rows.add(('F/K', 'Zararda'));
+    }
+
     addRow('PD/DD', 'priceToBook', (v) => v.toStringAsFixed(2));
     addRow('Özsermaye değeri', 'equityValue', (v) => '₺${formatCompactNumber(v)}');
     addRow('Özsermaye karlılık', 'returnOnEquity', (v) => formatPercent(v));

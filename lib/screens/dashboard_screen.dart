@@ -25,7 +25,11 @@ class _CategorySpend {
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onSeeAllTransactions;
-  const DashboardScreen({super.key, this.onSeeAllTransactions});
+  // Ust bardaki bildirim ve profil avatari eskiden hicbir seye baglanmiyordu
+  // (duz Container, GestureDetector/InkWell yoktu) — gorsel olarak buton gibi
+  // durup tiklaninca hicbir sey olmuyordu.
+  final VoidCallback? onOpenProfile;
+  const DashboardScreen({super.key, this.onSeeAllTransactions, this.onOpenProfile});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -226,25 +230,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Row(
                             children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: t.card,
-                                  border: Border.all(color: t.border),
-                                  borderRadius: BorderRadius.circular(12),
+                              // Bildirim ekrani henuz yok; simdilik bildirim
+                              // ayarinin durdugu Profil sekmesine goturuyor.
+                              GestureDetector(
+                                onTap: widget.onOpenProfile,
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: t.card,
+                                    border: Border.all(color: t.border),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(LucideIcons.bell, color: t.text, size: 18),
                                 ),
-                                child: Icon(LucideIcons.bell, color: t.text, size: 18),
                               ),
                               const SizedBox(width: 10),
-                              Container(
-                                width: 38,
-                                height: 38,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(color: t.brandSoft, shape: BoxShape.circle),
-                                child: Text(
-                                  _initials,
-                                  style: jakarta(fontSize: 14, fontWeight: FontWeight.w700, color: t.brand),
+                              GestureDetector(
+                                onTap: widget.onOpenProfile,
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(color: t.brandSoft, shape: BoxShape.circle),
+                                  child: Text(
+                                    _initials,
+                                    style: jakarta(fontSize: 14, fontWeight: FontWeight.w700, color: t.brand),
+                                  ),
                                 ),
                               ),
                             ],

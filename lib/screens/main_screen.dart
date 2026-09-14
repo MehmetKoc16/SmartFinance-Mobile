@@ -26,7 +26,11 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _pages = [
-      DashboardScreen(key: UniqueKey(), onSeeAllTransactions: () => setState(() => _currentIndex = 3)),
+      DashboardScreen(
+        key: UniqueKey(),
+        onSeeAllTransactions: () => setState(() => _currentIndex = 3),
+        onOpenProfile: () => setState(() => _currentIndex = 4),
+      ),
       const InvestmentsScreen(),
       const SizedBox(),
       TransactionsScreen(key: UniqueKey()),
@@ -36,7 +40,11 @@ class _MainScreenState extends State<MainScreen> {
 
   void _refreshPages() {
     setState(() {
-      _pages[0] = DashboardScreen(key: UniqueKey(), onSeeAllTransactions: () => setState(() => _currentIndex = 3));
+      _pages[0] = DashboardScreen(
+        key: UniqueKey(),
+        onSeeAllTransactions: () => setState(() => _currentIndex = 3),
+        onOpenProfile: () => setState(() => _currentIndex = 4),
+      );
       _pages[3] = TransactionsScreen(key: UniqueKey());
     });
   }
@@ -90,6 +98,13 @@ class _MainScreenState extends State<MainScreen> {
               final isActive = index == _currentIndex;
               final color = isActive ? t.brand : t.textTert;
               return GestureDetector(
+                // behavior belirtilmezse varsayilan deferToChild: yalnizca
+                // Icon/Text'in kendi piksellerine tiklaninca calisir, ikisi
+                // arasindaki bosluga veya SizedBox'in doldurmadigi kenarlara
+                // basinca hicbir sey olmaz — "yaziya basinca geciyor sanki"
+                // hissi buradan geliyordu. opaque, tum SizedBox alanini tek
+                // parca dokunma hedefi yapiyor.
+                behavior: HitTestBehavior.opaque,
                 onTap: () => setState(() => _currentIndex = index),
                 child: SizedBox(
                   width: 56,
