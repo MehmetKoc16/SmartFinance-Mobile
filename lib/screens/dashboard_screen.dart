@@ -71,6 +71,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadDashboardData();
   }
 
+  // Sadece < > okuyla ay degistirmek, orn. 14 ay geriye gitmek icin 14 kez
+  // tiklama gerektiriyordu — kullanici geri bildiriminde takvimden dogrudan
+  // ay/yil secebilmek istedi.
+  Future<void> _pickMonth() async {
+    final t = AppTokens.of(context);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(_selectedYear, _selectedMonth),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(primary: t.brand, surface: t.card),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked == null) return;
+    setState(() {
+      _selectedYear = picked.year;
+      _selectedMonth = picked.month;
+    });
+    _loadDashboardData();
+  }
+
   bool get _isCurrentMonth {
     final now = DateTime.now();
     return _selectedYear == now.year && _selectedMonth == now.month;
@@ -279,12 +307,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _monthNavButton(t, LucideIcons.chevronLeft, () => _changeMonth(-1)),
-                              SizedBox(
-                                width: 110,
-                                child: Text(
-                                  DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: t.text, fontSize: 14, fontWeight: FontWeight.w600),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _pickMonth,
+                                child: SizedBox(
+                                  width: 110,
+                                  child: Text(
+                                    DateFormat('MMMM yyyy', 'tr_TR').format(DateTime(_selectedYear, _selectedMonth)),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: t.text, fontSize: 14, fontWeight: FontWeight.w600),
+                                  ),
                                 ),
                               ),
                               _monthNavButton(
