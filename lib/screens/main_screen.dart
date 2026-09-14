@@ -19,17 +19,25 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  late final PageController _pageController;
 
   late List<Widget> _pages;
+
+  // Ortadaki FAB yuvasi (index 2) gercek bir sayfa degil, sadece "Ekle"
+  // menusunu aciyor — kaydirilabilir sekme sirasindan cikarildi. Kullanici
+  // geri bildiriminde Instagram'daki gibi sekmeler arasi kaydirma istendi:
+  // Ana Sayfa -> Yatirimlar -> (FAB atlanir) -> Islemler -> Profil.
+  static const List<int> _swipeableTabs = [0, 1, 3, 4];
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _swipeableTabs.indexOf(_currentIndex));
     _pages = [
       DashboardScreen(
         key: UniqueKey(),
-        onSeeAllTransactions: () => setState(() => _currentIndex = 3),
-        onOpenProfile: () => setState(() => _currentIndex = 4),
+        onSeeAllTransactions: () => _goToTab(3),
+        onOpenProfile: () => _goToTab(4),
       ),
       const InvestmentsScreen(),
       const SizedBox(),
@@ -38,15 +46,32 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _refreshPages() {
     setState(() {
       _pages[0] = DashboardScreen(
         key: UniqueKey(),
-        onSeeAllTransactions: () => setState(() => _currentIndex = 3),
-        onOpenProfile: () => setState(() => _currentIndex = 4),
+        onSeeAllTransactions: () => _goToTab(3),
+        onOpenProfile: () => _goToTab(4),
       );
       _pages[3] = TransactionsScreen(key: UniqueKey());
     });
+  }
+
+  // Alt navigasyon veya dashboard'daki "Tümünü Gör" gibi dogrudan sekme
+  // hedeflerinden cagrilir — hem _currentIndex'i hem PageView'in gorunen
+  // sayfasini birlikte gunceller.
+  void _goToTab(int tabIndex) {
+    setState(() => _currentIndex = tabIndex);
+    final page = _swipeableTabs.indexOf(tabIndex);
+    if (page != -1 && _pageController.hasClients) {
+      _pageController.animateToPage(page, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    }
   }
 
   static const _tabs = [
@@ -61,7 +86,11 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (position) => setState(() => _currentIndex = _swipeableTabs[position]),
+        children: [_pages[0], _pages[1], _pages[3], _pages[4]],
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: Container(
@@ -105,7 +134,7 @@ class _MainScreenState extends State<MainScreen> {
                 // hissi buradan geliyordu. opaque, tum SizedBox alanini tek
                 // parca dokunma hedefi yapiyor.
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _currentIndex = index),
+                onTap: () => _goToTab(index),
                 child: SizedBox(
                   width: 56,
                   child: Column(
