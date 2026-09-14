@@ -36,14 +36,17 @@ android {
         applicationId = "com.walletmark.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage en az API 23 istiyor; flutter.minSdkVersion
-        // (Flutter 3.47.4 itibariyla 24) bunu zaten karsiliyor. Onceden 23'e
-        // elle sabitlenmisti (API 23-24 arasi, Android 6.0, cihazlari da
-        // kapsasin diye) ama Flutter'in kendi goc araci bu satiri HER
-        // `flutter build`'de flutter.minSdkVersion'a geri ceviriyor — kalici
-        // bir bakim yuku olmadan kazanilamayan bir mucadele. 2026'da Android
-        // 6.0 payi ihmal edilebilir duzeyde; Flutter'in kendi onerdigi
-        // tabani takip etmek tercih edildi.
+        // minSdk 23'e (Android 6.0) geri dondurme denendi (14.09.2026): Flutter'in
+        // kendi "eski minSdk" temizleyicisini atlatmak (degiskene atayarak) kolaydi,
+        // ama local_auth_android, flutter_plugin_android_lifecycle ve
+        // shared_preferences_android ZATEN kendi AndroidManifest'lerinde minSdk 24
+        // talep ediyor — bunlar bagimsiz eklentiler degil, neredeyse her Flutter
+        // uygulamasinin temelinde olan paketler. Her birini yillar eski bir surume
+        // sabitlemek gerekiyordu, bu da AGP 9/Kotlin 2.4 toolchain'iyle uyumsuzluk
+        // riski tasiyordu ve zincir daha da derine inebilirdi (baska paketler de
+        // cikabilirdi). Play Console'un "1.009 cihaz" uyarisina ragmen 24'te
+        // kalmak, bu genis capli ve kirilgan bagimlilik sabitleme ugrasindan
+        // daha guvenli bulundu.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
