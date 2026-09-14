@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Yukleme anahtari bilgileri depoya GIRMEZ; android/key.properties dosyasindan
 // okunur ve o dosya .gitignore'da. Dosya yoksa (temiz klon, CI) surum derlemesi
@@ -21,20 +22,11 @@ plugins {
 
 android {
     namespace = "com.walletmark.app"
-    // Flutter 3.32.4'un varsayilani (flutter.compileSdkVersion) hala 35.
-    // Google Play, 2026'da yeni gonderimler icin API 36 (Android 16) hedeflenmesini
-    // zorunlu tuttu; SDK degil derleme hedefi eskidigi icin sabit deger veriliyor.
-    // SDK platform 36 yerelde kurulu (Android Studio SDK Manager, "Show Package
-    // Details" -> Android 16.0).
-    compileSdk = 36
+    compileSdk = flutter.compileSdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -44,12 +36,16 @@ android {
         applicationId = "com.walletmark.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage en az API 23 istiyor. Oturum token'larini
-        // Keystore destekli sifreli depoda tutabilmek icin Android 5.x (API 21-22)
-        // destegi birakildi; API 23 (Android 6.0, 2015) ve ustu desteklenir.
-        minSdk = 23
-        // Ayni gerekce: compileSdk'ye paralel sabitlendi.
-        targetSdk = 36
+        // flutter_secure_storage en az API 23 istiyor; flutter.minSdkVersion
+        // (Flutter 3.47.4 itibariyla 24) bunu zaten karsiliyor. Onceden 23'e
+        // elle sabitlenmisti (API 23-24 arasi, Android 6.0, cihazlari da
+        // kapsasin diye) ama Flutter'in kendi goc araci bu satiri HER
+        // `flutter build`'de flutter.minSdkVersion'a geri ceviriyor — kalici
+        // bir bakim yuku olmadan kazanilamayan bir mucadele. 2026'da Android
+        // 6.0 payi ihmal edilebilir duzeyde; Flutter'in kendi onerdigi
+        // tabani takip etmek tercih edildi.
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -75,6 +71,14 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+    }
+}
+
+kotlin {
+    // AGP 9 / KGP 2.4: android { kotlinOptions {} } kaldirildi, yerine
+    // Kotlin eklentisinin kendi ust seviye compilerOptions DSL'i geldi.
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 

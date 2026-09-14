@@ -57,14 +57,18 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   }
 
   Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.pickFiles(
+    // file_picker 12'de pickFiles() varsayilan olarak coklu secime izin
+    // veriyor; birden fazla dosya secilirse eski kod (.files.single) cokerdi.
+    // pickFile() (tekil) tam bizim kullanim seklimize uyuyor: tek dosya
+    // donuyor, iptalde null.
+    final PlatformFile? file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'xlsx'],
     );
-    if (result != null && result.files.single.path != null) {
+    if (file != null && file.path != null) {
       setState(() {
-        _selectedFilePath = result.files.single.path;
-        _selectedFileName = result.files.single.name;
+        _selectedFilePath = file.path;
+        _selectedFileName = file.name;
       });
     }
   }

@@ -32,6 +32,9 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# AGP 9.1.0 / Gradle 9.3.1: bazi rapor ciktilari artik android/build altina
+# da yaziliyor (onceki AGP surumunde yalniz kok build/ kullaniliyordu).
+/android/build/
 
 # Symbolication related
 app.*.symbols
