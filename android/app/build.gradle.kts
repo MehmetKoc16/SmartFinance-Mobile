@@ -21,7 +21,12 @@ plugins {
 
 android {
     namespace = "com.walletmark.app"
-    compileSdk = flutter.compileSdkVersion
+    // Flutter 3.32.4'un varsayilani (flutter.compileSdkVersion) hala 35.
+    // Google Play, 2026'da yeni gonderimler icin API 36 (Android 16) hedeflenmesini
+    // zorunlu tuttu; SDK degil derleme hedefi eskidigi icin sabit deger veriliyor.
+    // SDK platform 36 yerelde kurulu (Android Studio SDK Manager, "Show Package
+    // Details" -> Android 16.0).
+    compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -43,7 +48,8 @@ android {
         // Keystore destekli sifreli depoda tutabilmek icin Android 5.x (API 21-22)
         // destegi birakildi; API 23 (Android 6.0, 2015) ve ustu desteklenir.
         minSdk = 23
-        targetSdk = flutter.targetSdkVersion
+        // Ayni gerekce: compileSdk'ye paralel sabitlendi.
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
