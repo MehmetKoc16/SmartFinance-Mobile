@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -89,6 +90,30 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             : '');
     String selectedType = investment?['investmentType'] ?? 'stock';
 
+    // Hisse (stock) sembol alani icin arama-yaz sonucu — kullanici test
+    // geri bildiriminde serbest metin yerine arama istedi. Sadece hisse
+    // icin backend'de gercek arama var (BIST'e filtreli Yahoo aramasi),
+    // duzenleme modunda da gosterilmiyor cunku mevcut sembol zaten sabit.
+    List<Map<String, dynamic>> searchResults = [];
+    bool searching = false;
+    Timer? debounce;
+
+    Future<void> runSearch(String query, BuildContext dialogContext, StateSetter setDialogState) async {
+      final trimmed = query.trim();
+      if (trimmed.length < 2) {
+        if (dialogContext.mounted) setDialogState(() => searchResults = []);
+        return;
+      }
+      if (dialogContext.mounted) setDialogState(() => searching = true);
+      final result = await ApiService.authenticatedGet(
+          '/investment/search-symbols?q=${Uri.encodeQueryComponent(trimmed)}&type=stock');
+      if (!dialogContext.mounted) return;
+      setDialogState(() {
+        searchResults = result is List ? result.cast<Map<String, dynamic>>() : [];
+        searching = false;
+      });
+    }
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -102,7 +127,63 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               children: [
                 // Tam ad sorulmuyor: sunucu, fiyat sorgusunun yanıtından
                 // otomatik dolduruyor. Kullanıcıdan yalnızca sembol isteniyor.
-                _buildTextField(t, nameCtrl, 'Sembol (örn: THYAO)'),
+                _buildTextField(
+                  t,
+                  nameCtrl,
+                  'Sembol (örn: THYAO)',
+                  onChanged: (!isEdit && selectedType == 'stock')
+                      ? (value) {
+                          debounce?.cancel();
+                          debounce = Timer(
+                            const Duration(milliseconds: 350),
+                            () => runSearch(value, context, setDialogState),
+                          );
+                        }
+                      : null,
+                ),
+                if (!isEdit && selectedType == 'stock' && (searching || searchResults.isNotEmpty))
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    decoration: BoxDecoration(color: t.inputBg, borderRadius: BorderRadius.circular(10)),
+                    child: searching
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            itemCount: searchResults.length,
+                            itemBuilder: (context, i) {
+                              final r = searchResults[i];
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  '${r['symbol'] ?? ''}',
+                                  style: TextStyle(color: t.text, fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  '${r['name'] ?? ''}',
+                                  style: TextStyle(color: t.textTert),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () {
+                                  debounce?.cancel();
+                                  nameCtrl.text = '${r['symbol'] ?? ''}';
+                                  setDialogState(() => searchResults = []);
+                                },
+                              );
+                            },
+                          ),
+                  ),
                 const SizedBox(height: 10),
                 _buildTextField(t, purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
                 const SizedBox(height: 10),
@@ -120,7 +201,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     items: AppTypeColors.investmentLabel.entries
                         .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                         .toList(),
-                    onChanged: (v) => setDialogState(() => selectedType = v!),
+                    onChanged: (v) => setDialogState(() {
+                      selectedType = v!;
+                      if (selectedType != 'stock') {
+                        debounce?.cancel();
+                        searchResults = [];
+                      }
+                    }),
                   ),
                 ),
               ],
@@ -128,11 +215,15 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                debounce?.cancel();
+                Navigator.pop(context);
+              },
               child: Text('İptal', style: TextStyle(color: t.textTert)),
             ),
             ElevatedButton(
               onPressed: () async {
+                debounce?.cancel();
                 if (nameCtrl.text.isEmpty || purchasePriceCtrl.text.isEmpty) return;
                 final body = {
                   'name': nameCtrl.text.trim().toUpperCase(),
@@ -240,12 +331,14 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildTextField(AppTokens t, TextEditingController ctrl, String hint, {bool isNumber = false}) {
+  Widget _buildTextField(AppTokens t, TextEditingController ctrl, String hint,
+      {bool isNumber = false, ValueChanged<String>? onChanged}) {
     return TextField(
       controller: ctrl,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       style: TextStyle(color: t.text),
       decoration: InputDecoration(hintText: hint),
+      onChanged: onChanged,
     );
   }
 
