@@ -7,6 +7,7 @@ import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../widgets/transaction_card.dart';
+import 'notifications_screen.dart';
 
 class _CategorySpend {
   final String name;
@@ -44,6 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<int, String> _categoryMap = {};
   String _userName = '';
   bool _isLoading = true;
+  int _unreadNotifications = 0;
 
   late int _selectedYear;
   late int _selectedMonth;
@@ -138,6 +140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           '/transaction/filter?page=1&pageSize=100&type=2'
           '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
         ),
+        ApiService.authenticatedGet('/notification/unread-count'),
       ]);
 
       final me = results[0];
@@ -146,6 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final prevSummary = results[3] as Map;
       final recent = results[4] as Map;
       final monthExpenses = results[5] as Map;
+      final unreadCount = results[6] is Map ? (results[6] as Map)['count'] ?? 0 : 0;
 
       if (categories is List) {
         _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
@@ -193,6 +197,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _balanceChangePct = changePct;
           _recentTransactions = recent['items'] ?? [];
           _topSpendCats = topSpendCats;
+          _unreadNotifications = unreadCount is int ? unreadCount : 0;
           _isLoading = false;
         });
       }
@@ -258,19 +263,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Row(
                             children: [
-                              // Bildirim ekrani henuz yok; simdilik bildirim
-                              // ayarinin durdugu Profil sekmesine goturuyor.
                               GestureDetector(
-                                onTap: widget.onOpenProfile,
-                                child: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: t.card,
-                                    border: Border.all(color: t.border),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(LucideIcons.bell, color: t.text, size: 18),
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                                  );
+                                  // Bildirim ekraninda okundu isaretlenmis olabilir —
+                                  // zildeki rozet sayisi guncel kalsin diye tazele.
+                                  _loadDashboardData();
+                                },
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        color: t.card,
+                                        border: Border.all(color: t.border),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(LucideIcons.bell, color: t.text, size: 18),
+                                    ),
+                                    if (_unreadNotifications > 0)
+                                      Positioned(
+                                        top: -2,
+                                        right: -2,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                          constraints: const BoxConstraints(minWidth: 16),
+                                          decoration: BoxDecoration(color: t.red, borderRadius: BorderRadius.circular(8)),
+                                          child: Text(
+                                            _unreadNotifications > 9 ? '9+' : '$_unreadNotifications',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(width: 10),
