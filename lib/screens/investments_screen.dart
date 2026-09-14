@@ -100,7 +100,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
     Future<void> runSearch(String query, BuildContext dialogContext, StateSetter setDialogState) async {
       final trimmed = query.trim();
-      if (trimmed.length < 2) {
+      if (trimmed.isEmpty) {
         if (dialogContext.mounted) setDialogState(() => searchResults = []);
         return;
       }
