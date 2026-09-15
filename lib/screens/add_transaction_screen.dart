@@ -63,20 +63,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _categories.where((c) => c['type'] == _selectedType).toList();
 
   Future<void> _selectDate() async {
-    final t = AppTokens.of(context);
+    // Tema override'i yok: ColorScheme.dark acik temada beyaz uzerine beyaz yazi yapiyordu.
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(primary: t.brand, surface: t.card),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);

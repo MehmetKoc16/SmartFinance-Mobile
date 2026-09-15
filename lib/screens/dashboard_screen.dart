@@ -77,21 +77,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // tiklama gerektiriyordu — kullanici geri bildiriminde takvimden dogrudan
   // ay/yil secebilmek istedi.
   Future<void> _pickMonth() async {
-    final t = AppTokens.of(context);
+    // Tema override'i yok: ColorScheme.dark acik temada beyaz uzerine beyaz yazi yapiyordu.
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime(_selectedYear, _selectedMonth),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(primary: t.brand, surface: t.card),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked == null) return;
     setState(() {

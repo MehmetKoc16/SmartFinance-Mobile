@@ -322,17 +322,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
+                    // Tema override'i yok: ColorScheme.dark acik temada beyaz uzerine beyaz yazi yapiyordu.
                     final picked = await showDatePicker(
                       context: ctx,
                       initialDate: selectedDate,
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now(),
-                      builder: (context, child) => Theme(
-                        data: Theme.of(context).copyWith(
-                          colorScheme: ColorScheme.dark(primary: tk.brand, surface: tk.card),
-                        ),
-                        child: child!,
-                      ),
                     );
                     if (picked != null) setSheetState(() => selectedDate = picked);
                   },
