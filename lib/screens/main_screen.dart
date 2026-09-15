@@ -63,15 +63,49 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Alt navigasyon veya dashboard'daki "Tümünü Gör" gibi dogrudan sekme
-  // hedeflerinden cagrilir — hem _currentIndex'i hem PageView'in gorunen
-  // sayfasini birlikte gunceller.
+  // Geri tusu once bunu geri sarar; bosken Ana Sayfadayiz demektir ve ancak o
+  // zaman uygulamadan cikilir. MainScreen yigindaki tek route oldugu icin bu
+  // olmadan Android geri tusu her sekmede dogrudan uygulamayi kapatiyordu.
+  final List<int> _tabHistory = [];
+
+  void _recordTabChange(int tabIndex) {
+    // Bir onceki sekmeye donmek yeni kayit eklemek yerine son kaydi siler —
+    // ileri geri kaydirmak gecmisi sisirmesin.
+    if (_tabHistory.isNotEmpty && _tabHistory.last == tabIndex) {
+      _tabHistory.removeLast();
+    } else {
+      _tabHistory.add(_currentIndex);
+    }
+    _currentIndex = tabIndex;
+  }
+
+  // jumpToPage: animateToPage uzak sekmeye (Ana Sayfa -> Profil) giderken
+  // aradaki sayfalari da kaydirarak geciyordu.
   void _goToTab(int tabIndex) {
-    setState(() => _currentIndex = tabIndex);
+    if (tabIndex == _currentIndex) return;
+    setState(() => _recordTabChange(tabIndex));
+    _jumpToTab(tabIndex);
+  }
+
+  void _jumpToTab(int tabIndex) {
     final page = _swipeableTabs.indexOf(tabIndex);
     if (page != -1 && _pageController.hasClients) {
-      _pageController.animateToPage(page, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+      _pageController.jumpToPage(page);
     }
+  }
+
+  // jumpToPage da onPageChanged'i tetikler; o durumda _currentIndex zaten
+  // guncel oldugu icin yalnizca kullanicinin kaydirmasi islenir.
+  void _onPageChanged(int position) {
+    final tabIndex = _swipeableTabs[position];
+    if (tabIndex == _currentIndex) return;
+    setState(() => _recordTabChange(tabIndex));
+  }
+
+  void _goBackTab() {
+    final previous = _tabHistory.removeLast();
+    setState(() => _currentIndex = previous);
+    _jumpToTab(previous);
   }
 
   static const _tabs = [
@@ -86,10 +120,16 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (position) => setState(() => _currentIndex = _swipeableTabs[position]),
-        children: [_pages[0], _pages[1], _pages[3], _pages[4]],
+      body: PopScope(
+        canPop: _tabHistory.isEmpty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _tabHistory.isNotEmpty) _goBackTab();
+        },
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: [_pages[0], _pages[1], _pages[3], _pages[4]],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 14),

@@ -363,11 +363,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
                       isExpanded: true,
-                      value: selectedCategoryId,
+                      // Listede olmayan bir deger (silinmis kategori ya da tip
+                      // degisince uyumsuz kalan secim) DropdownButton'da
+                      // dogrulama hatasi verip duzenleme ekranini bozuyordu.
+                      value: _categories.any((c) => c['id'] == selectedCategoryId && c['type'] == selectedType)
+                          ? selectedCategoryId
+                          : null,
                       hint: Text('Kategori seçin', style: TextStyle(color: tk.textTert)),
                       dropdownColor: tk.card,
                       icon: Icon(LucideIcons.chevronDown, color: tk.textTert),
-                      items: _categories.map<DropdownMenuItem<int>>((cat) {
+                      items: _categories.where((cat) => cat['type'] == selectedType).map<DropdownMenuItem<int>>((cat) {
                         return DropdownMenuItem<int>(
                           value: cat['id'],
                           child: Text(cat['name'] ?? 'Kategori', style: TextStyle(color: tk.text)),
@@ -401,7 +406,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         );
                         return;
                       }
-                      if (selectedCategoryId == null) {
+                      if (!_categories.any((c) => c['id'] == selectedCategoryId && c['type'] == selectedType)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: const Text('Kategori seçiniz!'),
                               backgroundColor: tk.red, behavior: SnackBarBehavior.floating,
