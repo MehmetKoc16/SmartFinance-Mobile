@@ -275,6 +275,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 14),
                 Container(
+                  key: const Key('hesap-sil-uyari'),
+                  width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: t.redSoft, borderRadius: BorderRadius.circular(12)),
                   child: Column(
