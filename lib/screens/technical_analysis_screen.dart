@@ -76,6 +76,14 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   // bosaltiyor. Durum ogrenilemezse acik varsayilir (eski davranis).
   bool _indicatorsIncluded = true;
 
+  // Ekrandaki verinin araligi. Secili aralik veri gelmeden degisiyor; baslik ve
+  // eksen ona gore bicimlenince yukleme sirasinda eski 6 aylik grafik "00:00"
+  // ekseni ve "Bugun" basligiyla gorunuyordu (telefonda goruldu).
+  String _dataRange = '6m';
+
+  // En son istenen aralik/gosterge anahtari; gec gelen eski cevaplar gosterilmez.
+  String _latestKey = '';
+
   bool get _isFund => widget.investment?['investmentType'] == 'fund';
 
   // "1 Gun" gercek gun-ici (saatlik) veri gerektiriyor — sadece hisse/kripto
@@ -116,14 +124,17 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
 
   // force: asagi cekip yenilemede onbellek atlanir.
   Future<void> _loadData({bool force = false}) async {
+    final range = _selectedRange;
     final indicatorsParam = (!_indicatorsIncluded || _selectedIndicators.isEmpty)
         ? ''
         : '&indicators=${_selectedIndicators.join(',')}';
-    final cacheKey = '$_selectedRange$indicatorsParam';
+    final cacheKey = '$range$indicatorsParam';
+    _latestKey = cacheKey;
     final cached = force ? null : _cache[cacheKey];
     if (cached != null) {
       setState(() {
         _data = cached;
+        _dataRange = range;
         _isLoading = false;
         _error = null;
       });
@@ -134,24 +145,28 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       _error = null;
     });
     final result = await ApiService.authenticatedGet(
-      '/investment/${widget.investmentId}/technical-analysis?range=$_selectedRange$indicatorsParam',
+      '/investment/${widget.investmentId}/technical-analysis?range=$range$indicatorsParam',
       // TEFAS (fon) saglayicisi kendi hiz siniri korumasi icin parcalar
       // arasi bilerek 11sn bekliyor (180 gunluk sorgu ~80sn surebilir) —
       // genel 15sn varsayilanindan cok daha uzun bir sure gerekiyor.
       timeout: const Duration(seconds: 100),
     );
     if (!mounted) return;
-    if (result is Map && result.containsKey('error')) {
+    final hata = result is Map && result.containsKey('error');
+    if (!hata) _cache[cacheKey] = (result as Map).cast<String, dynamic>();
+    // Kullanici bu arada baska araliga gectiyse gec gelen cevap ekrana
+    // konmaz; yoksa yeni secimin grafiginin ustune yazardi.
+    if (cacheKey != _latestKey) return;
+    if (hata) {
       setState(() {
         _error = result['error'];
         _isLoading = false;
       });
       return;
     }
-    final data = (result as Map).cast<String, dynamic>();
-    _cache[cacheKey] = data;
     setState(() {
-      _data = data;
+      _data = _cache[cacheKey];
+      _dataRange = range;
       _isLoading = false;
     });
   }
@@ -275,7 +290,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     final lastClose = (priceBars.last['close'] as num).toDouble();
     // Yuzde secilen donemin degisimi. Onceden hep son iki barin farkiydi: 6 aylik
     // grafigin yaninda gunluk, 1 gunlukte ise 5 dk onceki bara gore degisim.
-    final reference = _selectedRange == '1d'
+    final reference = _dataRange == '1d'
         ? _asDouble(statistics?['previousClose']) ?? (priceBars.first['open'] as num).toDouble()
         : (priceBars.first['close'] as num).toDouble();
     final periodChange = reference == 0 ? 0.0 : (lastClose - reference) / reference * 100;
@@ -300,7 +315,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
                 style: TextStyle(color: periodChange >= 0 ? t.green : t.red, fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(width: 6),
             Flexible(
-              child: Text(_periodLabels[_selectedRange] ?? '',
+              child: Text(_periodLabels[_dataRange] ?? '',
                   overflow: TextOverflow.ellipsis, style: TextStyle(color: t.textTert, fontSize: 12)),
             ),
           ],
@@ -822,7 +837,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
               maxY: maxY,
               gridData: _gridData(t),
               titlesData: _priceTitlesData(t, priceBars,
-                  isIntraday: _selectedRange == '1d', range: range, step: adim),
+                  isIntraday: _dataRange == '1d', range: range, step: adim),
               borderData: FlBorderData(show: false),
               // Dokunulan noktanin tarihi ve degeri gosteriliyor. Kapaliyken
               // kullanici grafikten tek bir somut sayi okuyamiyordu.
@@ -848,9 +863,9 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
                       if (spot == touchedSpots.first) {
                         final idx = spot.x.toInt();
                         if (idx >= 0 && idx < priceBars.length) {
-                          final d = DateTime.tryParse(priceBars[idx]['date'] as String);
+                          final d = DateTime.tryParse(priceBars[idx]['date'] as String)?.toLocal();
                           if (d != null) {
-                            tarih = _selectedRange == '1d'
+                            tarih = _dataRange == '1d'
                                 ? '${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'
                                 : '${d.day}/${d.month}/${d.year}';
                           }
@@ -1130,7 +1145,9 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           getTitlesWidget: (v, meta) {
             final idx = v.toInt();
             if (idx < 0 || idx >= priceBars.length) return const SizedBox();
-            final date = DateTime.tryParse(priceBars[idx]['date'] as String);
+            // Gun ici barlar UTC ("...Z") geliyor; cevrilmezse 09:55 acilisi 06:55 gorunuyordu.
+            // Saatsiz gunluk tarihler zaten yerel sayildigi icin toLocal onlari degistirmez.
+            final date = DateTime.tryParse(priceBars[idx]['date'] as String)?.toLocal();
             if (date == null) return const SizedBox();
             final label = isIntraday
                 ? '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
