@@ -3,14 +3,13 @@ import 'package:smartfinance_mobile/screens/technical_analysis_screen.dart';
 
 import 'helpers/test_app.dart';
 
-/// F/K ve PD/DD artik KAP bilancosundan hesaplaniyor (18.09.2026). Deger
-/// Midas/Is Yatirim'dan biraz farkli cikabildigi icin kullanici rakamin
-/// kaynagini ve dayandigi donemi gorebilmeli. Degerler THYAO'nun o gunku
-/// canli yaniti.
+/// PD/DD artik KAP bilancosundan hesaplaniyor (18.09.2026); kullanici rakamin
+/// kaynagini ve dayandigi donemi gorebilmeli. F/K duzeltilene kadar sunucudan
+/// gelmiyor. Degerler THYAO'nun o gunku canli yaniti.
 void main() {
   tearDown(tearDownFakeApi);
 
-  testWidgets('KAP kaynakli F/K gosterilir ve kaynagi ile donemi yazilir', (tester) async {
+  testWidgets('KAP kaynakli PD/DD gosterilir ve kaynagi ile donemi yazilir', (tester) async {
     await setUpFakeApi(technicalAnalysisByRange: {
       '6m': {
         'symbol': 'THYAO',
@@ -22,7 +21,6 @@ void main() {
         'indicators': [],
         'statistics': {
           'marketCap': 390071549952,
-          'trailingPE': 3.4809479823307363,
           'priceToBook': 0.38297991094110356,
           'equityValue': 1018517000000.0,
           'isLossMaking': false,
@@ -37,7 +35,7 @@ void main() {
     )));
     await settle(tester);
 
-    expect(find.text('3.48'), findsOneWidget);
+    expect(find.text('F/K'), findsNothing);
     expect(find.text('0.38'), findsOneWidget);
     expect(find.textContaining('KAP'), findsOneWidget);
     expect(find.textContaining('6/2026'), findsOneWidget);

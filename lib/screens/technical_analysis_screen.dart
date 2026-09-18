@@ -537,7 +537,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           // ve dayandigi bilanco donemi gorunur olmali.
           if (stats['fundamentalsPeriod'] != null)
             Text(
-              'F/K, PD/DD ve özsermaye: KAP bilançosu (${stats['fundamentalsPeriod']}), son 12 ay kâr',
+              'PD/DD ve özsermaye: KAP bilançosu (${stats['fundamentalsPeriod']})',
               style: TextStyle(color: t.textTert, fontSize: 11),
             ),
         ],
