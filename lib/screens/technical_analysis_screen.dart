@@ -533,6 +533,13 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
                 ],
               ),
             ),
+          // Midas/Is Yatirim'dan biraz farkli cikabildigi icin rakamin kaynagi
+          // ve dayandigi bilanco donemi gorunur olmali.
+          if (stats['fundamentalsPeriod'] != null)
+            Text(
+              'F/K, PD/DD ve özsermaye: KAP bilançosu (${stats['fundamentalsPeriod']}), son 12 ay kâr',
+              style: TextStyle(color: t.textTert, fontSize: 11),
+            ),
         ],
       ),
     );
