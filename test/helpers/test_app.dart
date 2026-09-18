@@ -17,6 +17,7 @@ import 'package:smartfinance_mobile/services/api_service.dart';
 Future<void> setUpFakeApi({
   List<Map<String, dynamic>> categories = const [],
   List<Map<String, dynamic>> transactions = const [],
+  Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'auth_token': 'test', 'refresh_token': 'test'});
@@ -33,6 +34,8 @@ Future<void> setUpFakeApi({
       body = {'items': transactions, 'totalCount': transactions.length, 'page': 1, 'pageSize': 15, 'totalPages': 1};
     } else if (path.endsWith('/investment') || path.endsWith('/notification')) {
       body = [];
+    } else if (path.endsWith('/technical-analysis')) {
+      body = technicalAnalysisByRange[request.url.queryParameters['range']] ?? {};
     } else if (path.endsWith('/investment/refresh-prices')) {
       body = {'investments': []};
     } else {

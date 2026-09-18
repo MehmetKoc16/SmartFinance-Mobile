@@ -53,6 +53,11 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     ('ytd', 'YBB'), ('1y', '1Y'), ('5y', '5Y'),
   ];
 
+  static const Map<String, String> _periodLabels = {
+    '1d': 'Bugün', '1w': 'Son 1 hafta', '1m': 'Son 1 ay', '6m': 'Son 6 ay',
+    'ytd': 'Yılbaşından beri', '1y': 'Son 1 yıl', '5y': 'Son 5 yıl',
+  };
+
   Map<String, dynamic>? _data;
   bool _isLoading = true;
   String? _error;
@@ -238,8 +243,12 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     }
 
     final lastClose = (priceBars.last['close'] as num).toDouble();
-    final prevClose = priceBars.length > 1 ? (priceBars[priceBars.length - 2]['close'] as num).toDouble() : lastClose;
-    final dayChange = prevClose == 0 ? 0.0 : (lastClose - prevClose) / prevClose * 100;
+    // Yuzde secilen donemin degisimi. Onceden hep son iki barin farkiydi: 6 aylik
+    // grafigin yaninda gunluk, 1 gunlukte ise 5 dk onceki bara gore degisim.
+    final reference = _selectedRange == '1d'
+        ? _asDouble(statistics?['previousClose']) ?? (priceBars.first['open'] as num).toDouble()
+        : (priceBars.first['close'] as num).toDouble();
+    final periodChange = reference == 0 ? 0.0 : (lastClose - reference) / reference * 100;
 
     final overlaySeries = indicatorSeries.where((s) => IndicatorCatalog.byKey(s['key'])?.category == 'trend').toList();
     final oscillatorSeries =
@@ -254,15 +263,15 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           children: [
             Text(formatTRY(lastClose), style: jakarta(fontSize: 26, fontWeight: FontWeight.w600, color: t.text)),
             const SizedBox(width: 10),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(dayChange >= 0 ? LucideIcons.arrowUpRight : LucideIcons.arrowDownRight,
-                    color: dayChange >= 0 ? t.green : t.red, size: 14),
-                const SizedBox(width: 2),
-                Text('${dayChange >= 0 ? '+' : ''}${dayChange.toStringAsFixed(2)}%',
-                    style: TextStyle(color: dayChange >= 0 ? t.green : t.red, fontSize: 13, fontWeight: FontWeight.w600)),
-              ],
+            Icon(periodChange >= 0 ? LucideIcons.arrowUpRight : LucideIcons.arrowDownRight,
+                color: periodChange >= 0 ? t.green : t.red, size: 14),
+            const SizedBox(width: 2),
+            Text('${periodChange >= 0 ? '+' : ''}${periodChange.toStringAsFixed(2)}%',
+                style: TextStyle(color: periodChange >= 0 ? t.green : t.red, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(_periodLabels[_selectedRange] ?? '',
+                  overflow: TextOverflow.ellipsis, style: TextStyle(color: t.textTert, fontSize: 12)),
             ),
           ],
         ),
