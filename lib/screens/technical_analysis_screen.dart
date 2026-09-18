@@ -170,7 +170,10 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     return Scaffold(
       backgroundColor: t.bg,
       body: SafeArea(
-        child: _isLoading
+        // Tam ekran bekleme yalnizca ilk acilista. Aralik degisince tum ekran
+        // silinip ortada donen bir gosterge kaliyordu ("ilk tiklama yavas");
+        // artik eski grafik yerinde kalir, secicinin altinda ince bir cubuk doner.
+        child: _isLoading && _data == null
             ? Center(child: CircularProgressIndicator(color: t.brand))
             : Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -304,7 +307,12 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         ),
         const SizedBox(height: 12),
         _buildRangeSelector(t),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        // Sabit 2 px yer: cubuk gorununce sayfa asagi kaymasin.
+        SizedBox(
+          height: 2,
+          child: _isLoading ? LinearProgressIndicator(minHeight: 2, color: t.brand, backgroundColor: Colors.transparent) : null,
+        ),
 
         _indicatorSection(
           t,

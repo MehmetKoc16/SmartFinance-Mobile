@@ -15,8 +15,9 @@ Map<String, dynamic> _analiz() => {
       'statistics': null,
     };
 
-Future<void> _ac(WidgetTester tester, {bool? gostergelerAcik}) async {
+Future<void> _ac(WidgetTester tester, {bool? gostergelerAcik, Duration gecikme = Duration.zero}) async {
   await setUpFakeApi(
+    technicalAnalysisDelay: gecikme,
     technicalAnalysisByRange: {'6m': _analiz(), '1d': _analiz()},
     subscriptionStatus: gostergelerAcik == null
         ? null
@@ -48,6 +49,21 @@ void main() {
     await settle(tester);
 
     expect(_grafikIstekleri().length, 2);
+  });
+
+  /// Regresyon (18.09.2026, test kullanicisi: "ilk tiklama biraz yavas"):
+  /// sunucu ~300 ms'de donuyor, ama aralik degisince tum ekran silinip
+  /// ortada donen bir gosterge kaliyordu. Yeni veri gelene kadar mevcut
+  /// grafik yerinde kalmali, ustte ince bir cubuk gorunmeli.
+  testWidgets('Yeni aralik yuklenirken mevcut grafik ekranda kalir', (tester) async {
+    await _ac(tester, gecikme: const Duration(milliseconds: 300));
+
+    await tester.tap(find.text('1G'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Fiyat Grafiği'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    await settle(tester);
   });
 
   /// Onbellek, kullanicinin bilerek yaptigi yenilemeyi yutmamali.

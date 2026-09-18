@@ -22,6 +22,7 @@ Future<void> setUpFakeApi({
   List<Map<String, dynamic>> transactions = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,
+  Duration technicalAnalysisDelay = Duration.zero,
 }) async {
   fakeApiRequests.clear();
   SharedPreferences.setMockInitialValues({});
@@ -43,6 +44,7 @@ Future<void> setUpFakeApi({
     } else if (path.endsWith('/investment') || path.endsWith('/notification')) {
       body = [];
     } else if (path.endsWith('/technical-analysis')) {
+      await Future<void>.delayed(technicalAnalysisDelay);
       body = technicalAnalysisByRange[request.url.queryParameters['range']] ?? {};
     } else if (path.endsWith('/investment/refresh-prices')) {
       body = {'investments': []};
