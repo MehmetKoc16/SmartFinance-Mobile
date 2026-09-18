@@ -12,13 +12,18 @@ import 'package:smartfinance_mobile/core/theme/app_theme.dart';
 import 'package:smartfinance_mobile/core/theme/theme_controller.dart';
 import 'package:smartfinance_mobile/services/api_service.dart';
 
+/// Sahte sunucuya gelen istekler — testler istek sayisini dogrulayabilsin diye.
+final List<Uri> fakeApiRequests = [];
+
 /// Ekranlar initState'te sunucuya istek atiyor; testlerde sahte sunucu cevap
 /// veriyor. Tanimlanmamis uclar bos nesne doner.
 Future<void> setUpFakeApi({
   List<Map<String, dynamic>> categories = const [],
   List<Map<String, dynamic>> transactions = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
+  Map<String, dynamic>? subscriptionStatus,
 }) async {
+  fakeApiRequests.clear();
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'auth_token': 'test', 'refresh_token': 'test'});
   ApiService.resetLegacyMigrationForTest();
@@ -26,9 +31,12 @@ Future<void> setUpFakeApi({
   await initializeDateFormatting('tr_TR', null);
 
   ApiService.httpClientForTest = MockClient((request) async {
+    fakeApiRequests.add(request.url);
     final path = request.url.path;
     final Object body;
-    if (path.endsWith('/category')) {
+    if (path.endsWith('/subscription/status')) {
+      body = subscriptionStatus ?? {};
+    } else if (path.endsWith('/category')) {
       body = categories;
     } else if (path.endsWith('/transaction/filter')) {
       body = {'items': transactions, 'totalCount': transactions.length, 'page': 1, 'pageSize': 15, 'totalPages': 1};

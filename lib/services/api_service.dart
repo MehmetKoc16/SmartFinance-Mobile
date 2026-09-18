@@ -319,6 +319,11 @@ class ApiService{
         if (response.statusCode == 401) {
             return {'error': 'Oturumunuz sona erdi, lütfen tekrar giriş yapın.'};
         }
+        // Hiz siniri yaniti bos govdeyle geliyor; asagidaki genel dal
+        // "Islem basarisiz" diyordu ve kullanici sebebini anlayamiyordu.
+        if (response.statusCode == 429) {
+            return {'error': 'Çok fazla istek yapıldı. Birkaç saniye bekleyip tekrar deneyin.'};
+        }
         final data = response.body.isEmpty ? {} : jsonDecode(response.body);
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return data;

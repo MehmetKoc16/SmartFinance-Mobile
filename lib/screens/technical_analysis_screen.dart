@@ -66,6 +66,16 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   final Set<String> _openSections = {'_price'};
   String _selectedRange = '6m';
 
+  // Bu ekranda daha once yuklenen aralik/gosterge kombinasyonlari. Aralik
+  // secicisine her dokunus yeni istek atiyordu; dakikada 20 istek sinirina
+  // takilan kullanicinin yatirimlar ekranindaki fiyat yenilemesi de
+  // reddediliyordu. Ekran kapaninca atilir.
+  final Map<String, Map<String, dynamic>> _cache = {};
+
+  // Gostergeler premium'a ait; sunucu ucretsiz kullanicida onlari sessizce
+  // bosaltiyor. Durum ogrenilemezse acik varsayilir (eski davranis).
+  bool _indicatorsIncluded = true;
+
   bool get _isFund => widget.investment?['investmentType'] == 'fund';
 
   // "1 Gun" gercek gun-ici (saatlik) veri gerektiriyor — sadece hisse/kripto
@@ -88,6 +98,8 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
 
   Future<void> _init() async {
     if (!_isFund) {
+      final status = await ApiService.authenticatedGet('/subscription/status');
+      _indicatorsIncluded = !(status is Map && status['indicatorsIncluded'] == false);
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getStringList(_prefsKey);
       _selectedIndicators = (saved != null && saved.isNotEmpty)
@@ -102,12 +114,25 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     await prefs.setStringList(_prefsKey, _selectedIndicators.toList());
   }
 
-  Future<void> _loadData() async {
+  // force: asagi cekip yenilemede onbellek atlanir.
+  Future<void> _loadData({bool force = false}) async {
+    final indicatorsParam = (!_indicatorsIncluded || _selectedIndicators.isEmpty)
+        ? ''
+        : '&indicators=${_selectedIndicators.join(',')}';
+    final cacheKey = '$_selectedRange$indicatorsParam';
+    final cached = force ? null : _cache[cacheKey];
+    if (cached != null) {
+      setState(() {
+        _data = cached;
+        _isLoading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    final indicatorsParam = _selectedIndicators.isEmpty ? '' : '&indicators=${_selectedIndicators.join(',')}';
     final result = await ApiService.authenticatedGet(
       '/investment/${widget.investmentId}/technical-analysis?range=$_selectedRange$indicatorsParam',
       // TEFAS (fon) saglayicisi kendi hiz siniri korumasi icin parcalar
@@ -123,8 +148,10 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       });
       return;
     }
+    final data = (result as Map).cast<String, dynamic>();
+    _cache[cacheKey] = data;
     setState(() {
-      _data = (result as Map).cast<String, dynamic>();
+      _data = data;
       _isLoading = false;
     });
   }
@@ -193,7 +220,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
                       child: _error != null
                           ? _buildError(t)
                           : RefreshIndicator(
-                              onRefresh: _loadData,
+                              onRefresh: () => _loadData(force: true),
                               color: t.brand,
                               child: SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
@@ -307,19 +334,22 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
             ),
 
         if (!_isFund) ...[
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _showIndicatorPicker,
-              icon: Icon(LucideIcons.slidersHorizontal, size: 16, color: t.brand),
-              label: Text('Gösterge Ekle/Çıkar', style: TextStyle(color: t.brand, fontWeight: FontWeight.w600)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: t.border),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (_indicatorsIncluded)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showIndicatorPicker,
+                icon: Icon(LucideIcons.slidersHorizontal, size: 16, color: t.brand),
+                label: Text('Gösterge Ekle/Çıkar', style: TextStyle(color: t.brand, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: t.border),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
-            ),
-          ),
+            )
+          else
+            _premiumIndicatorNotice(t),
           const SizedBox(height: 10),
         ],
 
@@ -328,6 +358,26 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
         const SizedBox(height: 6),
         if (widget.investment != null) _buildPositionSummary(t, widget.investment!),
       ],
+    );
+  }
+
+  Widget _premiumIndicatorNotice(AppTokens t) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: t.brandSoft, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(LucideIcons.lock, size: 18, color: t.brand),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Teknik göstergeler (RSI, MACD, Bollinger ve diğerleri) Premium üyelere özel.',
+              style: TextStyle(color: t.text, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
