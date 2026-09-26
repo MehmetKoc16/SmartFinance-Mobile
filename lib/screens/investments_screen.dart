@@ -97,21 +97,41 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     // duzenleme modunda da gosterilmiyor cunku mevcut sembol zaten sabit.
     List<Map<String, dynamic>> searchResults = [];
     bool searching = false;
+    // Arama bittiginde sonuc yoksa ya da sunucuya ulasilamadiysa kullaniciya
+    // soylenir; eskiden ikisi de bos listeyle ayni gorunuyordu (26.09.2026:
+    // yayin sirasinda "ase" aramasi bos dondu, testci "ASELSAN yok" sandi).
+    String? searchMessage;
     Timer? debounce;
 
     Future<void> runSearch(String query, BuildContext dialogContext, StateSetter setDialogState) async {
       final trimmed = query.trim();
       if (trimmed.isEmpty) {
-        if (dialogContext.mounted) setDialogState(() => searchResults = []);
+        if (dialogContext.mounted) {
+          setDialogState(() {
+            searchResults = [];
+            searchMessage = null;
+          });
+        }
         return;
       }
-      if (dialogContext.mounted) setDialogState(() => searching = true);
+      if (dialogContext.mounted) {
+        setDialogState(() {
+          searching = true;
+          searchMessage = null;
+        });
+      }
       final result = await ApiService.authenticatedGet(
           '/investment/search-symbols?q=${Uri.encodeQueryComponent(trimmed)}&type=stock');
       if (!dialogContext.mounted) return;
       setDialogState(() {
-        searchResults = result is List ? result.cast<Map<String, dynamic>>() : [];
         searching = false;
+        if (result is List) {
+          searchResults = result.cast<Map<String, dynamic>>();
+          searchMessage = searchResults.isEmpty ? '"$trimmed" için hisse bulunamadı.' : null;
+        } else {
+          searchResults = [];
+          searchMessage = 'Arama yapılamadı. Bağlantınızı kontrol edip tekrar deneyin.';
+        }
       });
     }
 
@@ -158,32 +178,44 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                               ),
                             ),
                           )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            padding: EdgeInsets.zero,
-                            itemCount: searchResults.length,
-                            itemBuilder: (context, i) {
-                              final r = searchResults[i];
-                              return ListTile(
-                                dense: true,
-                                title: Text(
-                                  '${r['symbol'] ?? ''}',
-                                  style: TextStyle(color: t.text, fontWeight: FontWeight.w600),
-                                ),
-                                subtitle: Text(
-                                  '${r['name'] ?? ''}',
-                                  style: TextStyle(color: t.textTert),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: () {
-                                  debounce?.cancel();
-                                  nameCtrl.text = '${r['symbol'] ?? ''}';
-                                  setDialogState(() => searchResults = []);
-                                },
-                              );
-                            },
+                        // ListView degil: AlertDialog icerigin boyutunu onceden
+                        // (intrinsic) olcuyor, ListView bunu desteklemiyor ve liste
+                        // acikken altindaki Alis Fiyati/Miktar alanlari kayboluyordu.
+                        // Material: ListTile dokunma efekti renkli kutu ustunde gorunsun.
+                        : Material(
+                            type: MaterialType.transparency,
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (final r in searchResults)
+                                    ListTile(
+                                      dense: true,
+                                      title: Text(
+                                        '${r['symbol'] ?? ''}',
+                                        style: TextStyle(color: t.text, fontWeight: FontWeight.w600),
+                                      ),
+                                      subtitle: Text(
+                                        '${r['name'] ?? ''}',
+                                        style: TextStyle(color: t.textTert),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      onTap: () {
+                                        debounce?.cancel();
+                                        nameCtrl.text = '${r['symbol'] ?? ''}';
+                                        setDialogState(() => searchResults = []);
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
+                  ),
+                if (!isEdit && selectedType == 'stock' && !searching && searchMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Text(searchMessage!, style: TextStyle(color: t.textSec, fontSize: 12.5)),
                   ),
                 const SizedBox(height: 10),
                 _buildTextField(t, purchasePriceCtrl, 'Alış Fiyatı', isNumber: true),
@@ -207,6 +239,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       if (selectedType != 'stock') {
                         debounce?.cancel();
                         searchResults = [];
+                        searchMessage = null;
                       }
                     }),
                   ),

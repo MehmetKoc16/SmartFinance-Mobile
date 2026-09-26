@@ -28,6 +28,8 @@ Future<void> setUpFakeApi({
   Duration technicalAnalysisDelay = Duration.zero,
   Map<String, dynamic>? pdfParseResult,
   Map<String, dynamic>? pdfParseWordsResult,
+  Object? symbolSearch,
+  int symbolSearchStatus = 200,
 }) async {
   fakeApiRequests.clear();
   fakeApiBodies.clear();
@@ -44,6 +46,10 @@ Future<void> setUpFakeApi({
       fakeApiBodies[path] = jsonDecode(request.body);
     }
     final Object body;
+    if (path.endsWith('/investment/search-symbols')) {
+      return http.Response(jsonEncode(symbolSearch ?? []), symbolSearchStatus,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+    }
     if (path.endsWith('/pdfimport/parse')) {
       body = pdfParseResult ?? {};
     } else if (path.endsWith('/pdfimport/parse-words')) {
