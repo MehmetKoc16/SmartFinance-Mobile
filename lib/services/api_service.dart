@@ -1,4 +1,5 @@
 import 'dart:convert';   //Json verileri okumak için
+import 'dart:io';
 import 'package:flutter/widgets.dart';   //GlobalKey<NavigatorState> ve debugPrint için
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';    //Token'ları şifreli saklamak için
@@ -407,8 +408,13 @@ class ApiService{
                 final uri = Uri.parse('$baseUrl$endpoint');
                 var request = http.MultipartRequest('POST', uri);
                 request.headers['Authorization'] = 'Bearer $token';
-                request.files.add(await http.MultipartFile.fromPath('file', filePath));
-                final streamedResponse = await request.send().timeout(_uploadTimeout);
+                // Ekstreler kucuk (birkac MB); dosya tek seferde okunuyor.
+                request.files.add(http.MultipartFile.fromBytes(
+                    'file', File(filePath).readAsBytesSync(),
+                    filename: filePath.split(RegExp(r'[\\/]')).last));
+                // request.send() kendi istemcisini aciyordu; ortak istemci
+                // uzerinden gonderilince testlerdeki sahte sunucu da devreye giriyor.
+                final streamedResponse = await _client.send(request).timeout(_uploadTimeout);
                 return http.Response.fromStream(streamedResponse);
             });
             return _decodeResponse(response);

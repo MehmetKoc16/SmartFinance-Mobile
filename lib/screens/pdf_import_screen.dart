@@ -7,7 +7,10 @@ import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 
 class PdfImportScreen extends StatefulWidget {
-  const PdfImportScreen({super.key});
+  const PdfImportScreen({super.key, @visibleForTesting this.initialFilePath});
+
+  // Dosya secici platform penceresi testte acilamiyor; test secilmis dosyayla baslar.
+  final String? initialFilePath;
 
   @override
   State<PdfImportScreen> createState() => _PdfImportScreenState();
@@ -43,6 +46,8 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedFilePath = widget.initialFilePath;
+    _selectedFileName = widget.initialFilePath?.split(RegExp(r'[\\/]')).last;
     _loadCategories();
   }
 
@@ -362,6 +367,19 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   // ─── AŞAMA 0: DOSYA SEÇİMİ ──────────────────────────────
 
   Widget _buildFileSelection(AppTokens t) {
+    // Kisa ekranda (orn. 360x600) icerik tasiyor, "Analiz Et" ekranin disina
+    // itiliyordu. Yer yetiyorsa Spacer butonu yine en alta iter; yetmezse kaydirilir.
+    return LayoutBuilder(
+      builder: (context, alan) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: alan.maxHeight),
+          child: IntrinsicHeight(child: _fileSelectionContent(t)),
+        ),
+      ),
+    );
+  }
+
+  Widget _fileSelectionContent(AppTokens t) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -521,15 +539,17 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                     size: 18,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    bankName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      bankName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
                   if (period.isNotEmpty)
                     Text(
                       period,
@@ -665,6 +685,8 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     final tx = _transactions[index];
     final isIncome = tx['type'] == 1;
     final isDuplicate = tx['isDuplicate'] ?? false;
+    // Sunucu: onceki bakiye +/- bu tutar bu satirin bakiyesini vermiyor.
+    final bakiyeTutmuyor = !isDuplicate && tx['balanceMismatch'] == true;
     final amount = (tx['amount'] as num).toDouble();
     final desc = tx['description'] ?? '';
     final merchant = tx['merchantName'] ?? '';
@@ -684,7 +706,11 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       decoration: BoxDecoration(
         color: isDuplicate ? t.card.withValues(alpha: 0.5) : t.card,
         border: Border.all(
-          color: isDuplicate ? t.amber.withValues(alpha: 0.4) : t.border,
+          color: isDuplicate
+              ? t.amber.withValues(alpha: 0.4)
+              : bakiyeTutmuyor
+                  ? t.red.withValues(alpha: 0.5)
+                  : t.border,
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -734,8 +760,27 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 style: TextStyle(color: t.amber, fontSize: 10),
               ),
             ],
-            const Spacer(),
-            _buildCategoryDropdown(t, index),
+            if (bakiyeTutmuyor) ...[
+              const SizedBox(width: 6),
+              Icon(LucideIcons.triangleAlert, size: 12, color: t.red),
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  'Tutarı kontrol edin',
+                  style: TextStyle(color: t.red, fontSize: 10),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            // Menu genisligini en uzun kategori adindan aliyordu; 360 piksel
+            // ekranda satirdan tasiyordu. Kalan alani kullanip adi kisaltiyor.
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _buildCategoryDropdown(t, index),
+              ),
+            ),
           ],
         ),
       ),
@@ -754,6 +799,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
         child: DropdownButton<int?>(
           value: currentCatId,
           isDense: true,
+          isExpanded: true,
           dropdownColor: t.card,
           style: TextStyle(color: t.text, fontSize: 11),
           hint: Text(
@@ -766,6 +812,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
               child: Text(
                 'Kategorisiz',
                 style: TextStyle(fontSize: 11, color: t.textSec),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             ..._categories.map((c) {
@@ -788,9 +835,12 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      c['name'] ?? '',
-                      style: TextStyle(fontSize: 11, color: t.text),
+                    Flexible(
+                      child: Text(
+                        c['name'] ?? '',
+                        style: TextStyle(fontSize: 11, color: t.text),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),

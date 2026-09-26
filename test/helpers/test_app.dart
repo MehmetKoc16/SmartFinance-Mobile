@@ -23,6 +23,7 @@ Future<void> setUpFakeApi({
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,
   Duration technicalAnalysisDelay = Duration.zero,
+  Map<String, dynamic>? pdfParseResult,
 }) async {
   fakeApiRequests.clear();
   SharedPreferences.setMockInitialValues({});
@@ -35,7 +36,9 @@ Future<void> setUpFakeApi({
     fakeApiRequests.add(request.url);
     final path = request.url.path;
     final Object body;
-    if (path.endsWith('/subscription/status')) {
+    if (path.endsWith('/pdfimport/parse')) {
+      body = pdfParseResult ?? {};
+    } else if (path.endsWith('/subscription/status')) {
       body = subscriptionStatus ?? {};
     } else if (path.endsWith('/category')) {
       body = categories;
