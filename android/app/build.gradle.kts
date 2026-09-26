@@ -73,6 +73,10 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -87,4 +91,16 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// Metin tanima (taranmis ekstre OCR'i): eklenti ML Kit'in GOMULU surumunu
+// getiriyor (ABI basina ~11 MB yerel kutuphane + model; APK 58 -> 89 MB).
+// Play Hizmetleri surumu ayni API'yi sunuyor, model Play Hizmetleri
+// tarafindan indiriliyor ve uygulamaya yalnizca birkac yuz KB ekliyor.
+// Bedeli: Play Hizmetleri olmayan cihazda (orn. yeni Huawei) OCR calismaz.
+configurations.all {
+    exclude(group = "com.google.mlkit", module = "text-recognition")
+}
+dependencies {
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 }

@@ -10,6 +10,11 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
+        <!-- OCR modeli uygulama yuklenirken Play Hizmetleri'nden indirilsin;
+             yoksa ilk taranmis ekstrede "model indiriliyor" hatasi alinir. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

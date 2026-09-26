@@ -5,6 +5,7 @@ import '../core/constants/category_style.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/statement_ocr.dart';
 
 class PdfImportScreen extends StatefulWidget {
   const PdfImportScreen({super.key, @visibleForTesting this.initialFilePath});
@@ -43,6 +44,13 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   /// kaybolan bir yazi yeterli degil — ne yapacagini soylemek gerekiyor.
   _EkstreHatasi? _hata;
 
+  /// Ekstre taranmis goruntuydu ve telefonda OCR ile okundu. OCR rakamlari
+  /// yanlis okuyabilir; onizlemede kullanici ayrica uyariliyor.
+  bool _ocrKullanildi = false;
+
+  /// OCR sirasinda yukleme ekraninda gosterilen ilerleme ("Sayfa 2/5 okundu").
+  String? _ilerleme;
+
   @override
   void initState() {
     super.initState();
@@ -80,13 +88,50 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
 
   Future<void> _parseFile() async {
     if (_selectedFilePath == null) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _ocrKullanildi = false;
+      _ilerleme = null;
+    });
 
-    final result = await ApiService.authenticatedUpload(
+    dynamic result = await ApiService.authenticatedUpload(
       '/pdfimport/parse',
       _selectedFilePath!,
     );
     if (!mounted) return;
+
+    // Sunucu PDF'te metin bulamadi: taranmis ekstre. Sayfalar telefonda okunur.
+    String? ocrHatasi;
+    if (result is Map && result['needsOcr'] == true) {
+      setState(() {
+        _ocrKullanildi = true;
+        _ilerleme = 'Sayfalar okunuyor';
+      });
+      try {
+        final kelimeler = await StatementOcr.instance.readPdf(
+          _selectedFilePath!,
+          onProgress: (okunan, toplam) {
+            if (mounted) setState(() => _ilerleme = 'Sayfa $okunan/$toplam okundu');
+          },
+        );
+        if (!mounted) return;
+        if (kelimeler.isEmpty) {
+          result = null;
+        } else {
+          setState(() => _ilerleme = 'İşlemler çıkarılıyor');
+          result = await ApiService.authenticatedPost('/pdfimport/parse-words', {
+            'words': kelimeler.map((k) => k.toJson()).toList(),
+          });
+        }
+      } on OcrException catch (e) {
+        ocrHatasi = e.message;
+        result = null;
+      } catch (e) {
+        debugPrint('[OCR] ERROR: $e');
+        result = null;
+      }
+      if (!mounted) return;
+    }
 
     setState(() {
       _isLoading = false;
@@ -105,7 +150,11 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       }
 
       if (_transactions.isEmpty) {
-        _hata = _EkstreHatasi.olustur(_selectedFileName);
+        _hata = _EkstreHatasi.olustur(
+          _selectedFileName,
+          taranmis: _ocrKullanildi,
+          ayrinti: ocrHatasi,
+        );
       }
     });
   }
@@ -214,12 +263,12 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 CircularProgressIndicator(color: t.brand),
                 const SizedBox(height: 20),
                 Text(
-                  'Dosya analiz ediliyor...',
+                  _ocrKullanildi ? 'Taranmış ekstre okunuyor...' : 'Dosya analiz ediliyor...',
                   style: TextStyle(color: t.text, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'İşlemler çıkarılıyor',
+                  _ilerleme ?? 'İşlemler çıkarılıyor',
                   style: TextStyle(color: t.textSec, fontSize: 13),
                 ),
               ],
@@ -469,7 +518,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'PDF ve Excel (.xlsx) ekstreler desteklenir. Taranmış veya görüntü tabanlı PDF dosyaları okunamaz; bankanızda Excel seçeneği varsa onu tercih edin.',
+                    'PDF ve Excel (.xlsx) ekstreler desteklenir. Taranmış PDF\'ler telefonunuzda okunur, görüntü hiçbir yere gönderilmez. En doğru sonuç için bankanızda Excel seçeneği varsa onu tercih edin.',
                     style: TextStyle(color: t.textSec, fontSize: 12),
                   ),
                 ),
@@ -608,6 +657,32 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
             ],
           ),
         ),
+
+        if (_ocrKullanildi)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: t.amber.withValues(alpha: 0.12),
+              border: Border.all(color: t.amber.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.scanText, size: 18, color: t.amber),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Bu ekstre taranmış görüntüden okundu. İçe aktarmadan önce '
+                    'tutarları ve tarihleri kontrol edin.',
+                    style: TextStyle(color: t.text, fontSize: 13, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
         Expanded(
           child: ListView.builder(
@@ -942,24 +1017,41 @@ class _EkstreHatasi {
     this.adimlar = const [],
   });
 
-  static _EkstreHatasi olustur(String? dosyaAdi) {
+  static const _excelAdimlari = [
+    'Bankanızın mobil veya internet şubesinde Hesap Hareketleri ekranını açın.',
+    'Görmek istediğiniz tarih aralığını seçin.',
+    'İndirme biçimi olarak PDF yerine Excel (.xlsx) seçeneğini işaretleyin.',
+    'İnen dosyayı buradan yükleyin.',
+  ];
+
+  static _EkstreHatasi olustur(String? dosyaAdi, {bool taranmis = false, String? ayrinti}) {
     final pdf = (dosyaAdi ?? '').toLowerCase().endsWith('.pdf');
 
-    if (pdf) {
-      return const _EkstreHatasi(
-        baslik: 'Bu PDF okunamadı',
+    if (pdf && taranmis) {
+      return _EkstreHatasi(
+        baslik: 'Taranmış ekstre okunamadı',
         aciklama:
-            'Kusura bakmayın. Dosyadaki yazılar metin değil, görüntü '
-            'olarak kaydedilmiş. Bu durumda işlemleri ayıklayamıyoruz.\n\n'
+            '${ayrinti ?? 'Dosya taranmış bir görüntü. Telefonunuzda okumayı denedik '
+                'ama işlem tablosunu çıkaramadık; görüntü bulanık veya eğik olabilir.'}\n\n'
+            'Aynı ekstreyi bankanızdan Excel (.xlsx) olarak indirip tekrar denerseniz '
+            'sorunsuz çalışacaktır.',
+        adimBasligi: 'Excel ekstresi nasıl indirilir?',
+        adimlar: _excelAdimlari,
+      );
+    }
+
+    if (pdf) {
+      // Metin var ama tablo bulunamadi: ne bankaya ozel ne de genel okuyucu
+      // bu duzeni tanidi. Eski mesaj burada da "goruntu" diyordu, yanlisti.
+      return const _EkstreHatasi(
+        baslik: 'Bu ekstrenin biçimini tanıyamadık',
+        aciklama:
+            'Kusura bakmayın. Dosyayı açabildik ama içindeki işlem tablosunu '
+            'bulamadık. Bu bankanın ekstre düzenini henüz desteklemiyor olabiliriz.\n\n'
             'Aynı ekstreyi Excel (.xlsx) olarak indirip tekrar denerseniz '
             'sorunsuz çalışacaktır.',
         adimBasligi: 'Excel ekstresi nasıl indirilir?',
-        adimlar: [
-          'Bankanızın mobil veya internet şubesinde Hesap Hareketleri ekranını açın.',
-          'Görmek istediğiniz tarih aralığını seçin.',
-          'İndirme biçimi olarak PDF yerine Excel (.xlsx) seçeneğini işaretleyin.',
-          'İnen dosyayı buradan yükleyin.',
-        ],
+        adimlar: _excelAdimlari,
       );
     }
 

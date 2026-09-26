@@ -15,6 +15,9 @@ import 'package:smartfinance_mobile/services/api_service.dart';
 /// Sahte sunucuya gelen istekler — testler istek sayisini dogrulayabilsin diye.
 final List<Uri> fakeApiRequests = [];
 
+/// JSON govdeli isteklerin cozulmus govdeleri, yola gore (son gelen kalir).
+final Map<String, dynamic> fakeApiBodies = {};
+
 /// Ekranlar initState'te sunucuya istek atiyor; testlerde sahte sunucu cevap
 /// veriyor. Tanimlanmamis uclar bos nesne doner.
 Future<void> setUpFakeApi({
@@ -24,8 +27,10 @@ Future<void> setUpFakeApi({
   Map<String, dynamic>? subscriptionStatus,
   Duration technicalAnalysisDelay = Duration.zero,
   Map<String, dynamic>? pdfParseResult,
+  Map<String, dynamic>? pdfParseWordsResult,
 }) async {
   fakeApiRequests.clear();
+  fakeApiBodies.clear();
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'auth_token': 'test', 'refresh_token': 'test'});
   ApiService.resetLegacyMigrationForTest();
@@ -35,9 +40,14 @@ Future<void> setUpFakeApi({
   ApiService.httpClientForTest = MockClient((request) async {
     fakeApiRequests.add(request.url);
     final path = request.url.path;
+    if ((request.headers['Content-Type'] ?? '').startsWith('application/json') && request.body.isNotEmpty) {
+      fakeApiBodies[path] = jsonDecode(request.body);
+    }
     final Object body;
     if (path.endsWith('/pdfimport/parse')) {
       body = pdfParseResult ?? {};
+    } else if (path.endsWith('/pdfimport/parse-words')) {
+      body = pdfParseWordsResult ?? {};
     } else if (path.endsWith('/subscription/status')) {
       body = subscriptionStatus ?? {};
     } else if (path.endsWith('/category')) {
