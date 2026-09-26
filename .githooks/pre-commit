@@ -37,7 +37,7 @@ eklenenler() { git diff --cached -U0 "$@" | grep -v 'sahte-veri'; }
 
 # --- 1) Dosya adina gore yasakli olanlar ---------------------------------
 # Banka ekstresi, imzalama anahtari, ortam dosyasi, ozel anahtar.
-yasakli=$(echo "$dosyalar" | grep -iE '(\.(pdf|xlsx|xls|jks|p12|keystore|pem|env)$)|(^|/)key\.properties$|(^|/)\.env|(^|/)secrets\.json$|appsettings\.Development\.json$|(^|/)id_(rsa|ed25519)$')
+yasakli=$(echo "$dosyalar" | grep -iE '(\.(pdf|xlsx|xls|jks|p12|keystore|pem|env)$)|(^|/)key\.properties$|(^|/)\.env|(^|/)secrets\.json$|appsettings\.Development\.json$|(^|/)id_(rsa|ed25519)$|(^|/)google-services.json$|(^|/)GoogleService-Info.plist$|firebase-adminsdk[^/]*.json$')
 if [ -n "$yasakli" ]; then
     bildir "Bu dosya turleri depoya giremez:"
     echo "$yasakli" | sed 's/^/    /'

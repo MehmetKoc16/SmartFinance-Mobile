@@ -66,3 +66,9 @@ android/key.properties
 *.jks
 *.p12
 *.keystore
+
+# Firebase: istemci yapilandirmasi (API anahtari icerir) ve sunucunun
+# hizmet hesabi anahtari (ozel anahtar). Ikisi de depo DISINDA durur.
+google-services.json
+GoogleService-Info.plist
+*firebase-adminsdk*.json
