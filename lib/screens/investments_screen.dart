@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/app_type_colors.dart';
 import '../core/theme/app_theme.dart';
@@ -611,7 +612,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
   void _showInvestmentActions(Map<String, dynamic> inv) {
     final t = AppTokens.of(context);
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       backgroundColor: t.card,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),

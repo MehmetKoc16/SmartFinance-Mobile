@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -123,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Ayni gerekce: modal alt sayfada SnackBar klavyenin arkasinda kaliyor.
     String? hata;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,
@@ -245,7 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Ayni gerekce: alt sayfada SnackBar gorunmuyor.
     String? hata;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,
@@ -389,7 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const strengthLabels = ['Çok zayıf', 'Zayıf', 'Orta', 'Güçlü', 'Çok güçlü'];
     Color colorFor(String key, AppTokens t) => key == 'red' ? t.red : (key == 'amber' ? t.amber : t.green);
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,
@@ -541,7 +542,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showHelpSheet() {
     final t = AppTokens.of(context);
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,

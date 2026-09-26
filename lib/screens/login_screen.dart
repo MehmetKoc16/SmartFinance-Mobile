@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
@@ -51,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool gonderildi = false;
     String? hata;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,

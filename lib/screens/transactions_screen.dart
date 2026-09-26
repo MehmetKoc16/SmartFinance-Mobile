@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
@@ -207,7 +208,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     int? selectedCategoryId = t['categoryId'];
     DateTime selectedDate = DateTime.tryParse(t['transactionDate'] ?? '') ?? DateTime.now();
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: tk.card,

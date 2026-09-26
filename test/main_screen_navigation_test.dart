@@ -60,7 +60,7 @@ void main() {
     expect(currentPage(tester), 0);
   });
 
-  testWidgets('Geri tusu sekme gecmisini sirayla geri sarar, en sonda Ana Sayfadan cikar', (tester) async {
+  testWidgets('Geri tusu sekme gecmisini sirayla geri sarar, Ana Sayfada cikmadan once sorar', (tester) async {
     await pumpMain(tester);
     await tapTab(tester, 'Yatırımlar');
     await tapTab(tester, 'Profil');
@@ -74,7 +74,26 @@ void main() {
     expect(appExited(), isFalse);
 
     await systemBack(tester);
+    expect(appExited(), isFalse);
+    expect(find.text('Uygulamadan çıkılsın mı?'), findsOneWidget);
+
+    await tester.tap(find.text('Çık'));
+    await settle(tester);
     expect(appExited(), isTrue);
+  });
+
+  /// Test kullanicisi geri bildirimi (24.09.2026): Ana Sayfada geri tusu
+  /// uygulamayi sormadan kapatiyordu.
+  testWidgets('Cikis sorusunda Vazgec denirse uygulama acik kalir', (tester) async {
+    await pumpMain(tester);
+
+    await systemBack(tester);
+    await tester.tap(find.text('Vazgeç'));
+    await settle(tester);
+
+    expect(appExited(), isFalse);
+    expect(find.text('Uygulamadan çıkılsın mı?'), findsNothing);
+    expect(currentPage(tester), 0);
   });
 
   testWidgets('Kaydirarak gecilen sekme de gecmise eklenir', (tester) async {

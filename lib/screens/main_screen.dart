@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
@@ -108,6 +110,29 @@ class _MainScreenState extends State<MainScreen> {
     _jumpToTab(previous);
   }
 
+  Future<bool> _confirmExit() async {
+    final t = AppTokens.of(context);
+    final cik = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Uygulamadan çıkılsın mı?', style: TextStyle(color: t.text, fontSize: 17)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç', style: TextStyle(color: t.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Çık', style: TextStyle(color: t.red, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    return cik ?? false;
+  }
+
   static const _tabs = [
     (icon: LucideIcons.house, label: 'Ana Sayfa'),
     (icon: LucideIcons.trendingUp, label: 'Yatırımlar'),
@@ -121,9 +146,16 @@ class _MainScreenState extends State<MainScreen> {
     final t = AppTokens.of(context);
     return Scaffold(
       body: PopScope(
-        canPop: _tabHistory.isEmpty,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && _tabHistory.isNotEmpty) _goBackTab();
+        // Hic kendiliginden kapanmiyor: gecmis varsa onceki sekmeye donuluyor,
+        // Ana Sayfadaysa once soruluyor (test kullanicisi geri bildirimi).
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          if (_tabHistory.isNotEmpty) {
+            _goBackTab();
+            return;
+          }
+          if (await _confirmExit()) SystemNavigator.pop();
         },
         child: PageView(
           controller: _pageController,
@@ -203,7 +235,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _showAddMenu() {
     final t = AppTokens.of(context);
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       backgroundColor: t.card,
       shape: const RoundedRectangleBorder(

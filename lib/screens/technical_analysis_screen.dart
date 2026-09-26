@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -405,7 +406,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   }
 
   void _showIndicatorPicker() {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTokens.of(context).card,

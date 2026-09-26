@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/category_style.dart';
 import '../core/theme/app_theme.dart';
@@ -84,7 +85,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     String selectedIcon = 'shopping-bag';
     Color selectedColor = CategoryStyles.colorPicker.first;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,
@@ -261,7 +262,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       text: budget != null ? (budget['monthlyLimit'] as num).toStringAsFixed(0) : '',
     );
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: t.card,
