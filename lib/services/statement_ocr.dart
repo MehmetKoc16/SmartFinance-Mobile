@@ -60,6 +60,48 @@ abstract class StatementOcr {
   static void resetForTest() => instance = MlKitStatementOcr();
 }
 
+/// Sayfanin egimi (radyan), ML Kit satirlarinin ust kenarlarindan. Kose
+/// sirasi: sol ust, sag ust, sag alt, sol alt. Yalnizca yuksekliginin en az
+/// 3 kati uzunlugundaki satirlar sayilir (kisa kutularin acisi gurultulu);
+/// ortanca alinir, birkac yanlis okunmus satir sonucu kaydirmasin.
+@visibleForTesting
+double sayfaEgimi(List<List<Offset>> satirKoseleri) {
+  final acilar = <double>[];
+  for (final k in satirKoseleri) {
+    if (k.length < 4) continue;
+    final ust = k[1] - k[0];
+    final yukseklik = (k[3] - k[0]).distance;
+    if (yukseklik <= 0 || ust.distance < 3 * yukseklik) continue;
+    acilar.add(math.atan2(ust.dy, ust.dx));
+  }
+  if (acilar.isEmpty) return 0;
+  acilar.sort();
+  return acilar[acilar.length ~/ 2];
+}
+
+/// Kelime koselerini [egim] kadar geri dondurup eksene hizali kutulara cevirir.
+/// Sunucudaki ayristirici satirlari dikey konuma gore grupluyor; egik taramada
+/// ayni satirin solu ile sagi farkli satir sanilirdi.
+@visibleForTesting
+List<OcrWord> duzeltilmisKelimeler(List<(String, List<Offset>)> kelimeler, double egim, int sayfa) {
+  final c = math.cos(egim), s = math.sin(egim);
+  return [
+    for (final (metin, koseler) in kelimeler)
+      () {
+        final xs = [for (final p in koseler) p.dx * c + p.dy * s];
+        final ys = [for (final p in koseler) -p.dx * s + p.dy * c];
+        return OcrWord(
+          text: metin,
+          left: xs.reduce(math.min),
+          top: ys.reduce(math.min),
+          right: xs.reduce(math.max),
+          bottom: ys.reduce(math.max),
+          page: sayfa,
+        );
+      }(),
+  ];
+}
+
 class MlKitStatementOcr implements StatementOcr {
   // PDF birimi 1/72 inc. 3 kat ~216 DPI: 8 puntoluk ekstre yazisi ~24 piksel
   // olur, ML Kit'in onerdigi 16-24 piksel araligina girer.
@@ -112,18 +154,30 @@ class MlKitStatementOcr implements StatementOcr {
             rethrow;
           }
 
+          Offset nokta(math.Point<int> p) => Offset(p.x.toDouble(), p.y.toDouble());
+          final satirKoseleri = <List<Offset>>[];
+          final hamKelimeler = <(String, List<Offset>)>[];
           for (final blok in sonuc.blocks) {
             for (final satir in blok.lines) {
+              satirKoseleri.add(satir.cornerPoints.map(nokta).toList());
               for (final e in satir.elements) {
                 // Sunucu bos veya 200 karakterden uzun kelimede tum istegi
                 // reddeder; tek bir bozuk okuma ekstreyi bosa cikarmasin.
                 if (e.text.trim().isEmpty || e.text.length > 200) continue;
                 final k = e.boundingBox;
-                kelimeler.add(OcrWord(
-                    text: e.text, left: k.left, top: k.top, right: k.right, bottom: k.bottom, page: no));
+                hamKelimeler.add((
+                  e.text,
+                  e.cornerPoints.length == 4
+                      ? e.cornerPoints.map(nokta).toList()
+                      : [k.topLeft, k.topRight, k.bottomRight, k.bottomLeft],
+                ));
               }
             }
           }
+          // Taranmis sayfa hep biraz egik; 10 dereceden fazlasi guvenilmez.
+          var egim = sayfaEgimi(satirKoseleri);
+          if (egim.abs() > 10 * math.pi / 180) egim = 0;
+          kelimeler.addAll(duzeltilmisKelimeler(hamKelimeler, egim, no));
         } finally {
           await sayfa.close();
           if (gecici != null && await gecici.exists()) await gecici.delete();
