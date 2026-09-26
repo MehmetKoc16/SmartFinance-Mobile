@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bildirim ikonunun vurgu rengi (uygulamanin marka mavisi). -->
+    <color name="bildirim_rengi">#3B82F6</color>
+</resources>

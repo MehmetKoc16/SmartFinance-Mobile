@@ -70,9 +70,20 @@ Future<void> setUpFakeApi({
 
 void tearDownFakeApi() => ApiService.httpClientForTest = http.Client();
 
-Widget testApp(Widget home, {ThemeData? theme}) => ChangeNotifierProvider(
+Widget testApp(
+  Widget home, {
+  ThemeData? theme,
+  GlobalKey<NavigatorState>? navigatorKey,
+  GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey,
+}) =>
+    ChangeNotifierProvider(
       create: (_) => ThemeController(),
-      child: MaterialApp(theme: theme ?? AppTheme.light, home: home),
+      child: MaterialApp(
+        theme: theme ?? AppTheme.light,
+        navigatorKey: navigatorKey,
+        scaffoldMessengerKey: scaffoldMessengerKey,
+        home: home,
+      ),
     );
 
 // pumpAndSettle, yukleme sirasinda donen sonsuz CircularProgressIndicator

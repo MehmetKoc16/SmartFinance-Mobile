@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';   //GlobalKey<NavigatorState> ve debugPri
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';    //Token'ları şifreli saklamak için
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Eski sürümden token taşıma (migration) için
+import 'push_service.dart';    //Çıkışta cihazın bildirim kaydını silmek için
 
 class ApiService{
     // Canlı sunucu (Hetzner + Caddy, Let's Encrypt sertifikalı).
@@ -132,6 +133,8 @@ class ApiService{
     /// token'ları temizler. Backend isteği başarısız olsa bile (bağlantı yok
     /// vb.) yerel oturum her halükarda kapatılır.
     static Future<void> logout() async {
+        // Cihazin bildirim kaydi oturum gerektiriyor: token'lar silinmeden once.
+        await PushService.stop();
         final refreshToken = await getRefreshToken();
         if (refreshToken != null) {
             try {

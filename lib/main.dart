@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -9,10 +10,19 @@ import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/api_service.dart';
 import 'services/biometric_service.dart';
+import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr_TR', null);
+  // Anlik bildirimler icin. Basarisiz olursa (Play Hizmetleri yok vb.)
+  // uygulama bildirimsiz calismaya devam eder; zil ikonu yine calisir.
+  try {
+    await Firebase.initializeApp();
+    PushService.enabled = true;
+  } catch (e) {
+    debugPrint('[Push] Firebase baslatilamadi: $e');
+  }
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeController(),
@@ -34,6 +44,7 @@ class SmartFinanceApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeController.mode,
       navigatorKey: ApiService.navigatorKey,
+      scaffoldMessengerKey: PushService.scaffoldMessengerKey,
       home: const SplashScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),

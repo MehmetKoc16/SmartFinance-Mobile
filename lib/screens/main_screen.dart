@@ -11,6 +11,7 @@ import 'categories_screen.dart';
 import 'profile_screen.dart';
 import 'investments_screen.dart';
 import 'pdf_import_screen.dart';
+import '../services/push_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -34,6 +35,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    // Oturum acik ve kilit gecildi: telefona bildirim kaydi burada basliyor.
+    PushService.start();
     _pageController = PageController(initialPage: _swipeableTabs.indexOf(_currentIndex));
     _pages = [
       DashboardScreen(
