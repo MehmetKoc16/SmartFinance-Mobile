@@ -7,15 +7,18 @@ import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../widgets/transaction_card.dart';
+import 'category_detail_screen.dart';
 import 'notifications_screen.dart';
 
 class _CategorySpend {
+  final int categoryId;
   final String name;
   final Color color;
   final IconData icon;
   final double amount;
   final double pct;
   const _CategorySpend({
+    required this.categoryId,
     required this.name,
     required this.color,
     required this.icon,
@@ -41,7 +44,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _totalExpense = 0;
   double? _balanceChangePct;
   List<dynamic> _recentTransactions = [];
+  // Ayin tum harcama kategorileri (buyukten kucuge); kartta ilk 4'u gosterilir,
+  // "Tum kategoriler" ile hepsi acilir.
   List<_CategorySpend> _topSpendCats = [];
+  bool _tumKategoriler = false;
   Map<int, String> _categoryMap = {};
   String _userName = '';
   bool _isLoading = true;
@@ -167,12 +173,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         spendByCategory[catId as int] = (spendByCategory[catId] ?? 0) + amt;
       }
       final sortedCats = spendByCategory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      final top4 = sortedCats.take(4).toList();
-      final maxSpend = top4.isNotEmpty ? top4.first.value : 1.0;
-      final topSpendCats = top4.map((e) {
+      final maxSpend = sortedCats.isNotEmpty ? sortedCats.first.value : 1.0;
+      final topSpendCats = sortedCats.map((e) {
         final name = _categoryMap[e.key] ?? 'Silinmiş kategori';
         final style = CategoryStyles.of(name);
         return _CategorySpend(
+          categoryId: e.key,
           name: name,
           color: style.color,
           icon: style.icon,
@@ -204,6 +210,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _categoryMap[catId]!;
     }
     return '';
+  }
+
+  /// Kategorinin secili aydaki ozeti ve islemleri (salt okunur ekran).
+  void _kategoriyiAc(_CategorySpend c) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryDetailScreen(
+          categoryId: c.categoryId,
+          categoryName: c.name,
+          year: _selectedYear,
+          month: _selectedMonth,
+        ),
+      ),
+    );
   }
 
   String _formatDay(String? dateStr) {
@@ -448,8 +469,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text('Kategoriye Göre Harcama',
                                   style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
                               const SizedBox(height: 12),
-                              ..._topSpendCats.map((c) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
+                              ..._topSpendCats.take(_tumKategoriler ? _topSpendCats.length : 4).map((c) => InkWell(
+                                    onTap: () => _kategoriyiAc(c),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
                                     child: Row(
                                       children: [
                                         Container(
@@ -490,9 +514,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             style: TextStyle(color: t.textSec, fontSize: 12.5),
                                           ),
                                         ),
+                                        const SizedBox(width: 4),
+                                        Icon(LucideIcons.chevronRight, size: 15, color: t.textTert),
                                       ],
                                     ),
+                                  ),
                                   )),
+                              if (_topSpendCats.length > 4)
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () => setState(() => _tumKategoriler = !_tumKategoriler),
+                                    child: Text(
+                                      _tumKategoriler ? 'Daha az göster' : 'Tüm kategoriler (${_topSpendCats.length})',
+                                      style: TextStyle(color: t.brand, fontSize: 12.5, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox(height: 8),
                             ],
                           ),
                         ),

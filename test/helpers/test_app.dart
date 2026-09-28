@@ -30,6 +30,9 @@ Future<void> setUpFakeApi({
   Map<String, dynamic>? pdfParseWordsResult,
   Object? symbolSearch,
   int symbolSearchStatus = 200,
+  // Verilirse /transaction/filter sorguya gore cevaplanir (kategori, tarih, sayfa).
+  Map<String, dynamic> Function(Uri uri)? transactionFilter,
+  List<Map<String, dynamic>> budgetStatus = const [],
 }) async {
   fakeApiRequests.clear();
   fakeApiBodies.clear();
@@ -59,7 +62,10 @@ Future<void> setUpFakeApi({
     } else if (path.endsWith('/category')) {
       body = categories;
     } else if (path.endsWith('/transaction/filter')) {
-      body = {'items': transactions, 'totalCount': transactions.length, 'page': 1, 'pageSize': 15, 'totalPages': 1};
+      body = transactionFilter?.call(request.url) ??
+          {'items': transactions, 'totalCount': transactions.length, 'page': 1, 'pageSize': 15, 'totalPages': 1};
+    } else if (path.contains('/budget/status/')) {
+      body = budgetStatus;
     } else if (path.endsWith('/investment') || path.endsWith('/notification')) {
       body = [];
     } else if (path.endsWith('/technical-analysis')) {
