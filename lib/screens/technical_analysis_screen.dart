@@ -413,11 +413,20 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         final t = AppTokens.of(ctx);
-        return StatefulBuilder(
+        // Liste ekrandan uzun: pencere icerik kadar uzayinca tam ekran aciliyor
+        // ve ustu durum cubugunun altina giriyordu (28.09.2026). Yarim acilir,
+        // liste icinde kayar; istenirse yukari cekilip buyutulur.
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.55,
+          minChildSize: 0.3,
+          maxChildSize: 0.92,
+          builder: (ctx, scrollController) => StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
               child: SingleChildScrollView(
+                controller: scrollController,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,6 +483,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
               ),
             );
           },
+          ),
         );
       },
     ).whenComplete(() {
