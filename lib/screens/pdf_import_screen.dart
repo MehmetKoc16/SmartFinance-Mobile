@@ -863,7 +863,13 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   }
 
   Widget _buildCategoryDropdown(AppTokens t, int index) {
-    final currentCatId = _transactions[index]['categoryId'];
+    // Yalnizca islemin turune uyan kategoriler: sunucu gidere gelir kategorisi
+    // (ve tersi) kaydetmiyor, secim sessizce kaybolmasin (28.09.2026).
+    final tur = _transactions[index]['type'];
+    final uyanlar = _categories.where((c) => c['type'] == null || c['type'] == tur).toList();
+    final onerilen = _transactions[index]['categoryId'];
+    // Secili deger listede olmali; yoksa DropdownButton hata verir.
+    final currentCatId = uyanlar.any((c) => c['id'] == onerilen) ? onerilen : null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -890,7 +896,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            ..._categories.map((c) {
+            ...uyanlar.map((c) {
               final style = CategoryStyles.resolve(
                 c['name'] ?? '',
                 icon: c['icon'],
