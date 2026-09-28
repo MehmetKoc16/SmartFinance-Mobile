@@ -1,5 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
@@ -14,6 +17,11 @@ import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Yazi tipleri uygulamanin icinde (assets/google_fonts). Internetten
+  // indirme kapali: indirilemeyen telefonda uygulama telefonun kendi yazi
+  // tipiyle farkli gorunuyordu ve her kurulumda Google'a istek gidiyordu.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  LicenseRegistry.addLicense(_yaziTipiLisanslari);
   await initializeDateFormatting('tr_TR', null);
   // Anlik bildirimler icin. Basarisiz olursa (Play Hizmetleri yok vb.)
   // uygulama bildirimsiz calismaya devam eder; zil ikonu yine calisir.
@@ -29,6 +37,15 @@ void main() async {
       child: const SmartFinanceApp(),
     ),
   );
+}
+
+/// Yazi tipleri SIL Open Font License ile dagitiliyor; lisans metni
+/// uygulamayla birlikte verilmeli (Flutter'in lisans sayfasinda gorunur).
+Stream<LicenseEntry> _yaziTipiLisanslari() async* {
+  for (final (aile, dosya) in [('Inter', 'Inter'), ('Plus Jakarta Sans', 'PlusJakartaSans')]) {
+    final metin = await rootBundle.loadString('assets/google_fonts/$dosya-OFL.txt');
+    yield LicenseEntryWithLineBreaks([aile], metin);
+  }
 }
 
 class SmartFinanceApp extends StatelessWidget {
