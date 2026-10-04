@@ -10,6 +10,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import 'premium_screen.dart';
 
 class TechnicalAnalysisScreen extends StatefulWidget {
   final int investmentId;
@@ -395,9 +396,25 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
           Icon(LucideIcons.lock, size: 18, color: t.brand),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Teknik göstergeler (RSI, MACD, Bollinger ve diğerleri) Premium üyelere özel.',
-              style: TextStyle(color: t.text, fontSize: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Teknik göstergeler (RSI, MACD, Bollinger ve diğerleri) Premium üyelere özel.',
+                  style: TextStyle(color: t.text, fontSize: 13),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                    if (!mounted) return;
+                    final status = await ApiService.authenticatedGet('/subscription/status');
+                    if (!mounted) return;
+                    _indicatorsIncluded = !(status is Map && status['indicatorsIncluded'] == false);
+                    await _loadData(force: true);
+                  },
+                  child: const Text("Premium'a geç"),
+                ),
+              ],
             ),
           ),
         ],

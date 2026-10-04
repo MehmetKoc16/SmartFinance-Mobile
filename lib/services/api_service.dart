@@ -335,7 +335,7 @@ class ApiService{
         final message = (data is Map && data['message'] != null)
             ? data['message']
             : 'İşlem başarısız';
-        return {'error': message};
+        return {'error': message, if (response.statusCode == 402) 'premiumRequired': true};
     }
 
     static Future<dynamic> authenticatedGet(String endpoint, {Duration? timeout}) async{

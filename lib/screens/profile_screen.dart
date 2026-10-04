@@ -9,6 +9,7 @@ import '../core/theme/theme_controller.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
+import 'premium_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -648,6 +649,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [
+                          PremiumProfileEntry(
+                            builder: (isPremium, open) => _settingsRow(
+                              t, LucideIcons.crown, 'Premium', onTap: open,
+                              trailing: isPremium
+                                  ? Text('Aktif', style: TextStyle(color: t.green, fontWeight: FontWeight.w600))
+                                  : Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
+                            ),
+                          ),
                           _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle',
                               onTap: _showEditProfileSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(

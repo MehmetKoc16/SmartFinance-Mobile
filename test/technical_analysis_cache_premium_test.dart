@@ -81,7 +81,8 @@ void main() {
   testWidgets('Premium olmayan kullaniciya gostergelerin premium ozellik oldugu soylenir', (tester) async {
     await _ac(tester, gostergelerAcik: false);
 
-    expect(find.textContaining('Premium'), findsOneWidget);
+    expect(find.textContaining('Premium üyelere özel'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, "Premium'a geç"), findsOneWidget);
     expect(find.text('Gösterge Ekle/Çıkar'), findsNothing);
     expect(_grafikIstekleri().every((u) => !u.queryParameters.containsKey('indicators')), isTrue);
   });

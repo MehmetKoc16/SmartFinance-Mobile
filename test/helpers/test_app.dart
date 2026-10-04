@@ -25,6 +25,9 @@ Future<void> setUpFakeApi({
   List<Map<String, dynamic>> transactions = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,
+  Map<String, dynamic>? subscriptionVerifyResult,
+  int subscriptionVerifyStatus = 200,
+  Duration subscriptionVerifyDelay = Duration.zero,
   Duration technicalAnalysisDelay = Duration.zero,
   Map<String, dynamic>? pdfParseResult,
   Map<String, dynamic>? pdfParseWordsResult,
@@ -42,6 +45,7 @@ Future<void> setUpFakeApi({
   ApiService.resetRefreshStateForTest();
   await initializeDateFormatting('tr_TR', null);
 
+  var currentSubscriptionStatus = subscriptionStatus;
   ApiService.httpClientForTest = MockClient((request) async {
     fakeApiRequests.add(request.url);
     final path = request.url.path;
@@ -49,6 +53,17 @@ Future<void> setUpFakeApi({
       fakeApiBodies[path] = jsonDecode(request.body);
     }
     final Object body;
+    if (path.endsWith('/subscription/verify')) {
+      if (subscriptionVerifyDelay > Duration.zero) {
+        await Future<void>.delayed(subscriptionVerifyDelay);
+      }
+      final result = subscriptionVerifyResult ?? currentSubscriptionStatus ?? {};
+      if (subscriptionVerifyStatus >= 200 && subscriptionVerifyStatus < 300 && result['isPremium'] is bool) {
+        currentSubscriptionStatus = result;
+      }
+      return http.Response(jsonEncode(result),
+          subscriptionVerifyStatus, headers: {'content-type': 'application/json; charset=utf-8'});
+    }
     if (path.endsWith('/investment/search-symbols')) {
       return http.Response(jsonEncode(symbolSearch ?? []), symbolSearchStatus,
           headers: {'content-type': 'application/json; charset=utf-8'});
@@ -58,7 +73,7 @@ Future<void> setUpFakeApi({
     } else if (path.endsWith('/pdfimport/parse-words')) {
       body = pdfParseWordsResult ?? {};
     } else if (path.endsWith('/subscription/status')) {
-      body = subscriptionStatus ?? {};
+      body = currentSubscriptionStatus ?? {};
     } else if (path.endsWith('/category')) {
       body = categories;
     } else if (path.endsWith('/transaction/filter')) {
@@ -69,7 +84,9 @@ Future<void> setUpFakeApi({
     } else if (path.endsWith('/investment') || path.endsWith('/notification')) {
       body = [];
     } else if (path.endsWith('/technical-analysis')) {
-      await Future<void>.delayed(technicalAnalysisDelay);
+      if (technicalAnalysisDelay > Duration.zero) {
+        await Future<void>.delayed(technicalAnalysisDelay);
+      }
       body = technicalAnalysisByRange[request.url.queryParameters['range']] ?? {};
     } else if (path.endsWith('/investment/refresh-prices')) {
       body = {'investments': []};
