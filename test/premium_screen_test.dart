@@ -128,8 +128,9 @@ void main() {
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
         await settle(tester);
-        await BillingService.resetForTest();
-        await store.events.close();
+        await pumpUntilDone(tester, BillingService.resetForTest());
+        // Dinleyicisi olmayan StreamController'ın close() Future'ı hiç tamamlanmaz.
+        store.events.close().ignore();
       }
     });
   }
@@ -140,6 +141,68 @@ void main() {
     await setUpFakeApi(subscriptionStatus: _status(), subscriptionVerifyResult: _status(premium: true));
   });
   tearDown(tearDownFakeApi);
+
+  premiumTest('EkranKapaliykenGelenSatinAlma_DogrulanirVeTamamlanir', (tester) async {
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    await _open(tester);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await settle(tester);
+    store.events.add([_purchase(PurchaseStatus.purchased)]);
+    await settle(tester);
+    expect(_verifyRequests(), hasLength(1));
+    expect(store.completed, hasLength(1));
+  });
+
+  premiumTest('AcilistaPremiumDegilse_SessizGeriYuklemeYapilir', (tester) async {
+    store.restored = [_purchase(PurchaseStatus.restored)];
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    expect(store.restoreCalls, 1);
+    expect(store.completed, hasLength(1));
+  });
+
+  premiumTest('AcilistaPremiumsa_GeriYuklemeYapilmaz', (tester) async {
+    await setUpFakeApi(subscriptionStatus: _status(premium: true));
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    expect(store.restoreCalls, 0);
+  });
+
+  premiumTest('CikistaDinleyiciDurur_VeBekleyenDogrulamalarSilinir', (tester) async {
+    await setUpFakeApi(subscriptionStatus: _status(), subscriptionVerifyStatus: 500);
+    store.restored = [_purchase(PurchaseStatus.restored)];
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    expect(BillingService().canRetryVerification, true);
+    await pumpUntilDone(tester, BillingService().stopAppWide());
+    expect(store.events.hasListener, false);
+    expect(BillingService().canRetryVerification, false);
+    expect(BillingService().status, null);
+    store.events.add([_purchase(PurchaseStatus.purchased)]);
+    await settle(tester);
+    expect(_verifyRequests(), hasLength(1));
+  });
+
+  premiumTest('CikistaSurmekteOlanDogrulamaYeniOturumuDegistirmez', (tester) async {
+    await setUpFakeApi(subscriptionStatus: _status(),
+      subscriptionVerifyResult: _status(premium: true),
+      subscriptionVerifyDelay: const Duration(milliseconds: 500));
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    store.events.add([_purchase(PurchaseStatus.purchased)]);
+    await tester.pump();
+    await pumpUntilDone(tester, BillingService().stopAppWide());
+    await settle(tester);
+    expect(BillingService().status, null);
+    expect(BillingService().canRetryVerification, false);
+    expect(store.completed, isEmpty);
+  });
+
+  premiumTest('SessizKurtarmadaDogrulamaHatasi_KullaniciyaMesajGostermez_VeTamamlanmaz', (tester) async {
+    await setUpFakeApi(subscriptionStatus: _status(), subscriptionVerifyStatus: 500);
+    store.restored = [_purchase(PurchaseStatus.restored)];
+    await pumpUntilDone(tester, BillingService().startAppWide());
+    expect(BillingService().error, null);
+    expect(store.completed, isEmpty);
+    expect(BillingService().canRetryVerification, true);
+  });
 
   /// NEDEN: Play hizmeti yokken kullanıcı çalışmayan bir satın alma butonuyla karşılaşmamalı.
   premiumTest('Mağaza kullanılamıyorsa açıklama ve tekrar dene görünür', (tester) async {
@@ -199,8 +262,9 @@ void main() {
     expect(_verifyRequests(), isEmpty);
   });
 
-  /// NEDEN: Ekran kapanınca mağaza aboneliği kalmamalı; tekrar açılış yeniden dinlemeli.
-  premiumTest('Ekran kapanınca purchaseStream aboneliği iptal edilir ve tekrar açılabilir', (tester) async {
+  /// Uygulama oturumu başlatılmamış bağımsız ekran eski yaşam döngüsünü korur.
+  /// startAppWide sonrası kapanış davranışı ayrı regresyon testiyle korunur.
+  premiumTest('AppWide baslatilmamissa ekran kapaninca abonelik iptal edilir ve tekrar acilabilir', (tester) async {
     await _open(tester);
     expect(store.events.hasListener, isTrue);
     await tester.pumpWidget(const SizedBox.shrink());

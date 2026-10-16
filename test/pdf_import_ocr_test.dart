@@ -50,9 +50,24 @@ void main() {
     await tester.pumpWidget(testApp(PdfImportScreen(initialFilePath: dosya.path)));
     await settle(tester);
     await tester.ensureVisible(find.text('Analiz Et'));
-    await tester.tap(find.text('Analiz Et'));
-    await settle(tester);
+    await analyzeSelectedFile(tester);
   }
+
+  testWidgets('Yoklama false ise PDF yuklenmez ve OCR cagrilir', (tester) async {
+    final ocr = _SahteOcr(_kelimeler);
+    StatementOcr.instance = ocr;
+    await setUpFakeApi();
+    final dosya = await ornekDosya();
+    await tester.pumpWidget(testApp(PdfImportScreen(
+      initialFilePath: dosya.path, textProbe: (_) async => false,
+    )));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Analiz Et'));
+    await analyzeSelectedFile(tester);
+    expect(fakeApiRequests.any((u) => u.path.endsWith('/pdfimport/parse')), false);
+    expect(ocr.cagrilma, 1);
+    expect(fakeApiRequests.any((u) => u.path.endsWith('/pdfimport/parse-words')), true);
+  });
 
   testWidgets('Taranmis ekstre telefonda okunur, yalnizca kelimeler sunucuya gider', (tester) async {
     final ocr = _SahteOcr(_kelimeler);

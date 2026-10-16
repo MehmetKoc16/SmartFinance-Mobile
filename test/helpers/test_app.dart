@@ -23,6 +23,7 @@ final Map<String, dynamic> fakeApiBodies = {};
 Future<void> setUpFakeApi({
   List<Map<String, dynamic>> categories = const [],
   List<Map<String, dynamic>> transactions = const [],
+  Object categorySummary = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,
   Map<String, dynamic>? subscriptionVerifyResult,
@@ -74,6 +75,8 @@ Future<void> setUpFakeApi({
       body = pdfParseWordsResult ?? {};
     } else if (path.endsWith('/subscription/status')) {
       body = currentSubscriptionStatus ?? {};
+    } else if (path.contains('/transaction/category-summary/')) {
+      body = categorySummary;
     } else if (path.endsWith('/category')) {
       body = categories;
     } else if (path.endsWith('/transaction/filter')) {
@@ -121,4 +124,31 @@ Future<void> settle(WidgetTester tester, {int frames = 20}) async {
   for (var i = 0; i < frames; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
+}
+
+/// testWidgets FakeAsync bölgesinde bir servis Future'ını doğrudan `await`
+/// etmek testi sonsuza kadar asıyor (16.10.2026: startAppWide testleri 10 dk
+/// takıldı): içindeki zamanlayıcılar pump ile, gerçek I/O (platform kanalı,
+/// HttpClient) ise yalnız runAsync içinde ilerliyor; ikisini sırayla ver.
+Future<T> pumpUntilDone<T>(WidgetTester tester, Future<T> future, {int maxFrames = 200}) async {
+  var done = false;
+  future.whenComplete(() => done = true).ignore();
+  for (var i = 0; i < maxFrames && !done; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (!done) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+    }
+  }
+  if (!done) fail('Future $maxFrames kare içinde tamamlanmadı');
+  return future;
+}
+
+/// Dosya okuması artık asenkron: gerçek dosya I/O'sunu FakeAsync saatinin
+/// dışında bitir, ardından UI karelerini normal test saatinde çiz.
+Future<void> analyzeSelectedFile(WidgetTester tester) async {
+  final button = tester.widget<ElevatedButton>(
+    find.widgetWithText(ElevatedButton, 'Analiz Et'),
+  );
+  await tester.runAsync(() => (button.onPressed! as Future<void> Function())());
+  await settle(tester);
 }

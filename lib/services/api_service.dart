@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';    //Token'
 import 'package:http/http.dart' as http;    //Backend'e istek atmak için
 import 'package:shared_preferences/shared_preferences.dart';    //Eski sürümden token taşıma (migration) için
 import 'push_service.dart';    //Çıkışta cihazın bildirim kaydını silmek için
+import 'billing_service.dart';
 
 class ApiService{
     // Canlı sunucu (Hetzner + Caddy, Let's Encrypt sertifikalı).
@@ -42,6 +43,8 @@ class ApiService{
 
     static const Duration _timeout = Duration(seconds: 15);
     static const Duration _uploadTimeout = Duration(seconds: 60);
+    @visibleForTesting
+    static Duration? uploadTimeoutForTest;
 
     // MaterialApp'e bağlanır (main.dart); ekran/context'e bağlı olmadan
     // her yerden login ekranına yönlendirebilmek için kullanılır.
@@ -113,6 +116,7 @@ class ApiService{
     }
 
     static Future<void> removeToken() async{
+        await BillingService().stopAppWide();
         await _secureStorage.delete(key: _tokenKey);
         await _secureStorage.delete(key: _refreshTokenKey);
         // Taşıma hiç çalışmamış olabileceği ihtimaline karşı eski düz metin
@@ -133,6 +137,7 @@ class ApiService{
     /// token'ları temizler. Backend isteği başarısız olsa bile (bağlantı yok
     /// vb.) yerel oturum her halükarda kapatılır.
     static Future<void> logout() async {
+        await BillingService().stopAppWide();
         // Cihazin bildirim kaydi oturum gerektiriyor: token'lar silinmeden once.
         await PushService.stop();
         final refreshToken = await getRefreshToken();
@@ -210,8 +215,15 @@ class ApiService{
     /// daha gönderir. Refresh de başarısız olursa oturumu sonlandırır.
     static Future<http.Response> _sendWithAuth(
         Future<http.Response> Function(String token) send,
+        {bool Function()? isCurrentSession}
     ) async {
+        void checkSession() {
+            if (isCurrentSession != null && !isCurrentSession()) {
+                throw StateError('Session ended');
+            }
+        }
         final token = await getToken();
+        checkSession();
         final response = await send(token ?? '');
         if (response.statusCode != 401) return response;
 
@@ -219,17 +231,20 @@ class ApiService{
         // Öyleyse yeniden yenilemeye (ve refresh token'ı bir kez daha
         // rotasyona sokmaya) gerek yok, yalnızca yeni token'la tekrar dene.
         final currentToken = await getToken();
+        checkSession();
         if (currentToken != null && currentToken != token) {
             return send(currentToken);
         }
 
         final refreshed = await _tryRefreshToken();
+        checkSession();
         if (!refreshed) {
             await _handleUnauthorized();
             return response;
         }
 
         final newToken = await getToken();
+        checkSession();
         return send(newToken ?? '');
     }
 
@@ -259,7 +274,7 @@ class ApiService{
                 return{'success':false,'message':data['message'] ?? 'Kayıt başarısız'};
             }
         }catch(e){
-            return {'success':false,'message':'Bağlantı hatası: $e'};
+            return {'success':false,'message': 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'};
         }
     }
 
@@ -313,7 +328,7 @@ class ApiService{
           return {'success': false, 'message': data['message'] ?? 'Giriş başarısız'};
         }
       } catch (e) {
-        return {'success': false, 'message': 'Bağlantı hatası: $e'};
+        return {'success': false, 'message': 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'};
       }
     }
 
@@ -354,7 +369,8 @@ class ApiService{
     }
 
 
-    static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,) async{
+    static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,
+        {bool Function()? isCurrentSession}) async{
         try{
             final response = await _sendWithAuth((token) => _client.post(
                 Uri.parse('$baseUrl$endpoint'),
@@ -363,7 +379,7 @@ class ApiService{
                     'Authorization':'Bearer $token',
                 },
                 body:jsonEncode(body),
-            ).timeout(_timeout));
+            ).timeout(_timeout), isCurrentSession: isCurrentSession);
             return _decodeResponse(response);
         }catch(e){
             return {'error':'Bağlantı hatası: $e'};
@@ -380,7 +396,18 @@ class ApiService{
                 },
                 body: jsonEncode(body),
             ).timeout(_timeout));
-            return _decodeResponse(response);
+            final data = _decodeResponse(response);
+            if (endpoint == '/auth/change-password' &&
+                response.statusCode >= 200 && response.statusCode < 300 && data is Map) {
+                // Login ile aynı alanlar ve aynı güvenli saklama yolu.
+                if (data['token'] is String && (data['token'] as String).isNotEmpty) {
+                    await saveToken(data['token'] as String);
+                }
+                if (data['refreshToken'] is String && (data['refreshToken'] as String).isNotEmpty) {
+                    await saveRefreshToken(data['refreshToken'] as String);
+                }
+            }
+            return data;
         } catch (e) {
             return {'error': 'Bağlantı hatası: $e'};
         }
@@ -407,22 +434,31 @@ class ApiService{
     /// Multipart file upload (PDF yükleme için)
     static Future<dynamic> authenticatedUpload(String endpoint, String filePath) async {
         try {
+            final file = File(filePath);
+            const maxBytes = 15 * 1024 * 1024;
+            if (await file.length() > maxBytes) {
+                return {'error': 'Dosya çok büyük (en fazla 15 MB).'};
+            }
+            final bytes = await file.readAsBytes();
+            if (bytes.length > maxBytes) {
+                return {'error': 'Dosya çok büyük (en fazla 15 MB).'};
+            }
             final response = await _sendWithAuth((token) async {
                 final uri = Uri.parse('$baseUrl$endpoint');
                 var request = http.MultipartRequest('POST', uri);
                 request.headers['Authorization'] = 'Bearer $token';
-                // Ekstreler kucuk (birkac MB); dosya tek seferde okunuyor.
                 request.files.add(http.MultipartFile.fromBytes(
-                    'file', File(filePath).readAsBytesSync(),
+                    'file', bytes,
                     filename: filePath.split(RegExp(r'[\\/]')).last));
                 // request.send() kendi istemcisini aciyordu; ortak istemci
                 // uzerinden gonderilince testlerdeki sahte sunucu da devreye giriyor.
-                final streamedResponse = await _client.send(request).timeout(_uploadTimeout);
-                return http.Response.fromStream(streamedResponse);
+                return (() async {
+                    final streamedResponse = await _client.send(request);
+                    return http.Response.fromStream(streamedResponse);
+                })().timeout(uploadTimeoutForTest ?? _uploadTimeout);
             });
             return _decodeResponse(response);
         } catch (e) {
-            debugPrint('[Upload] ERROR: $e');
             return {'error': 'Bağlantı hatası: $e'};
         }
     }

@@ -11,7 +11,7 @@ import 'category_detail_screen.dart';
 import 'notifications_screen.dart';
 
 class _CategorySpend {
-  final int categoryId;
+  final int? categoryId;
   final String name;
   final Color color;
   final IconData icon;
@@ -91,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
     );
-    if (picked == null) return;
+    if (!mounted || picked == null) return;
     setState(() {
       _selectedYear = picked.year;
       _selectedMonth = picked.month;
@@ -123,8 +123,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final monthStart = DateTime(_selectedYear, _selectedMonth, 1);
-      final monthEnd = DateTime(_selectedYear, _selectedMonth + 1, 1).subtract(const Duration(seconds: 1));
       final prevMonth = _selectedMonth == 1 ? 12 : _selectedMonth - 1;
       final prevYear = _selectedMonth == 1 ? _selectedYear - 1 : _selectedYear;
 
@@ -135,8 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ApiService.authenticatedGet('/transaction/summary/$prevYear/$prevMonth'),
         ApiService.authenticatedGet('/transaction/filter?page=1&pageSize=5'),
         ApiService.authenticatedGet(
-          '/transaction/filter?page=1&pageSize=100&type=2'
-          '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
+          '/transaction/category-summary/$_selectedYear/$_selectedMonth?type=2',
         ),
         ApiService.authenticatedGet('/notification/unread-count'),
       ]);
@@ -146,7 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final summary = results[2] as Map;
       final prevSummary = results[3] as Map;
       final recent = results[4] as Map;
-      final monthExpenses = results[5] as Map;
+      final monthExpenses = results[5];
       final unreadCount = results[6] is Map ? (results[6] as Map)['count'] ?? 0 : 0;
 
       if (categories is List) {
@@ -162,28 +159,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final prevNet = prevIncome - prevExpense;
       final changePct = prevNet == 0 ? null : ((net - prevNet) / prevNet.abs()) * 100;
 
-      // Kategoriye göre harcama: backend PageSize sınırı 100 — bir ayda 100'den
-      // fazla gider işlemi olursa kırılım eksik hesaplanır. Bilgilendirme amaçlı
-      // bir bileşen olduğundan bu kabul edilebilir bir sınırlama.
-      final Map<int, double> spendByCategory = {};
-      for (final t in (monthExpenses['items'] ?? [])) {
-        final catId = t['categoryId'];
-        if (catId == null) continue;
-        final amt = (t['amount'] ?? 0).toDouble();
-        spendByCategory[catId as int] = (spendByCategory[catId] ?? 0) + amt;
-      }
-      final sortedCats = spendByCategory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      final maxSpend = sortedCats.isNotEmpty ? sortedCats.first.value : 1.0;
-      final topSpendCats = sortedCats.map((e) {
-        final name = _categoryMap[e.key] ?? 'Silinmiş kategori';
+      final rows = monthExpenses is List ? monthExpenses : const [];
+      final maxSpend = rows.isEmpty ? 1.0 : (rows.first['total'] as num).toDouble();
+      final topSpendCats = rows.map((row) {
+        final name = row['categoryId'] == null ? 'Kategorisiz' : row['categoryName'] as String;
+        final amount = (row['total'] as num).toDouble();
         final style = CategoryStyles.of(name);
         return _CategorySpend(
-          categoryId: e.key,
-          name: name,
-          color: style.color,
-          icon: style.icon,
-          amount: e.value,
-          pct: maxSpend == 0 ? 0 : (e.value / maxSpend * 100),
+          categoryId: row['categoryId'] as int?, name: name,
+          color: style.color, icon: style.icon, amount: amount,
+          pct: maxSpend == 0 ? 0 : amount / maxSpend * 100,
         );
       }).toList();
 
@@ -214,11 +199,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Kategorinin secili aydaki ozeti ve islemleri (salt okunur ekran).
   void _kategoriyiAc(_CategorySpend c) {
+    if (c.categoryId == null) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CategoryDetailScreen(
-          categoryId: c.categoryId,
+          categoryId: c.categoryId!,
           categoryName: c.name,
           year: _selectedYear,
           month: _selectedMonth,

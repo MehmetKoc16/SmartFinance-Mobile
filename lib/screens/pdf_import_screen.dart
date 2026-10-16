@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -6,9 +8,13 @@ import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../services/statement_ocr.dart';
+import '../services/pdf_text_probe.dart';
 
 class PdfImportScreen extends StatefulWidget {
-  const PdfImportScreen({super.key, @visibleForTesting this.initialFilePath});
+  const PdfImportScreen({super.key, @visibleForTesting this.initialFilePath,
+    this.textProbe = pdfMetinKatmaniVarMi});
+
+  final Future<bool?> Function(Uint8List) textProbe;
 
   // Dosya secici platform penceresi testte acilamiyor; test secilmis dosyayla baslar.
   final String? initialFilePath;
@@ -78,6 +84,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       type: FileType.custom,
       allowedExtensions: ['pdf', 'xlsx'],
     );
+    if (!mounted) return;
     if (file != null && file.path != null) {
       setState(() {
         _selectedFilePath = file.path;
@@ -94,10 +101,18 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       _ilerleme = null;
     });
 
-    dynamic result = await ApiService.authenticatedUpload(
-      '/pdfimport/parse',
-      _selectedFilePath!,
-    );
+    bool? hasText;
+    if (_selectedFilePath!.toLowerCase().endsWith('.pdf')) {
+      try {
+        hasText = await widget.textProbe(await File(_selectedFilePath!).readAsBytes());
+      } catch (_) {
+        hasText = null;
+      }
+    }
+    if (!mounted) return;
+    dynamic result = hasText == false
+        ? {'needsOcr': true}
+        : await ApiService.authenticatedUpload('/pdfimport/parse', _selectedFilePath!);
     if (!mounted) return;
 
     // Sunucu PDF'te metin bulamadi: taranmis ekstre. Sayfalar telefonda okunur.
@@ -126,8 +141,8 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
       } on OcrException catch (e) {
         ocrHatasi = e.message;
         result = null;
-      } catch (e) {
-        debugPrint('[OCR] ERROR: $e');
+      } catch (_) {
+        debugPrint('[OCR] Okuma tamamlanamadi');
         result = null;
       }
       if (!mounted) return;
@@ -518,7 +533,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'PDF ve Excel (.xlsx) ekstreler desteklenir. Taranmış PDF\'ler telefonunuzda okunur, görüntü hiçbir yere gönderilmez. En doğru sonuç için bankanızda Excel seçeneği varsa onu tercih edin.',
+                    'PDF ve Excel (.xlsx) ekstreler desteklenir. Taranmış PDF\'lerde sayfalar telefonunuzda okunur; sunucuya yalnızca okunan metin gönderilir. En doğru sonuç için bankanızda Excel seçeneği varsa onu tercih edin.',
                     style: TextStyle(color: t.textSec, fontSize: 12),
                   ),
                 ),

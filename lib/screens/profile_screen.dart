@@ -8,6 +8,10 @@ import '../core/theme/app_tokens.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/links.dart';
+import '../services/push_service.dart';
+import '../services/billing_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'login_screen.dart';
 import 'premium_screen.dart';
 
@@ -28,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userEmail = '';
   bool _notifOn = true;
 
-  static const _notifPrefsKey = 'notifications_enabled';
+  String _versionLabel = 'Wallet Mark';
 
   String get _initials {
     final parts = _userName.trim().split(' ');
@@ -41,6 +45,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfileData();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _versionLabel = 'Wallet Mark v${info.version} (${info.buildNumber})');
+    } catch (_) {
+      // Paket bilgisi alınamazsa uygulama adı görünmeye devam eder.
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -66,7 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _totalExpense = (summary['totalExpense'] ?? 0).toDouble();
           _transactionCount = summary['transactionCount'] ?? 0;
           _categoryCount = categories is List ? categories.length : 0;
-          _notifOn = prefs.getBool(_notifPrefsKey) ?? true;
+          _notifOn = prefs.getBool(PushService.notificationsEnabledKey) ?? true;
           _isLoading = false;
         });
       }
@@ -77,8 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _toggleNotif() async {
     setState(() => _notifOn = !_notifOn);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_notifPrefsKey, _notifOn);
+    await PushService.setNotificationsEnabled(_notifOn);
   }
 
   Future<void> _logout() async {
@@ -188,13 +202,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'email': emailCtrl.text.trim(),
                             });
 
-                            setSheetState(() => isSubmitting = false);
-
                             // ctx.mounted: sayfa (this) ayakta olsa bile
                             // kullanici alt sayfayi asagi kaydirip kapatmis
                             // olabilir. O durumda ctx olu kaliyor ve hem
                             // setSheetState hem Navigator.pop(ctx) hata veriyor.
                             if (!mounted || !ctx.mounted) return;
+                            setSheetState(() => isSubmitting = false);
                             if (result is Map && result.containsKey('error')) {
                               setSheetState(() => hata = result['error']?.toString() ?? 'İşlem başarısız oldu.');
                               return;
@@ -300,6 +313,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: t.amberSoft, borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Premium aboneliğiniz varsa önce iptal edin',
+                        style: TextStyle(color: t.text, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Text('Hesabınızı silmek Google Play aboneliğinizi iptal etmez; ücretlendirme devam eder. Silmeden önce aboneliğinizi Play Store\'dan iptal edin.',
+                        style: TextStyle(color: t.textSec, fontSize: 13, height: 1.5)),
+                      TextButton(onPressed: () => baglantiAc(ctx, abonelikYonetimUrl),
+                        child: const Text('Abonelikleri yönet')),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
                 Text('Devam etmek için şifrenizi girin.', style: TextStyle(color: t.textSec, fontSize: 13.5)),
                 const SizedBox(height: 10),
                 TextField(
@@ -335,15 +366,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               {'password': passwordCtrl.text},
                             );
 
-                            if (!ctx.mounted) return;
-
                             if (result is Map && result.containsKey('error')) {
+                              if (!mounted || !ctx.mounted) return;
                               setSheetState(() => isSubmitting = false);
                               setSheetState(() => hata = result['error'].toString());
                               return;
                             }
 
                             // Sunucudaki veri gitti; cihazdaki oturum da temizlenmeli.
+                            await BillingService().stopAppWide();
+                            await PushService.stop();
                             await ApiService.removeToken();
                             if (!mounted) return;
                             Navigator.of(context).pushAndRemoveUntil(
@@ -664,6 +696,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             LucideIcons.bell,
                             'Bildirimler',
                             trailing: GestureDetector(
+                              key: const Key('notifications-toggle'),
                               onTap: _toggleNotif,
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
@@ -721,6 +754,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           _settingsRow(t, LucideIcons.circleHelp, 'Yardım',
                               onTap: _showHelpSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(t, LucideIcons.shield, 'Gizlilik Politikası',
+                              onTap: () => baglantiAc(context, gizlilikUrl),
+                              trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(t, LucideIcons.trash2, 'Hesabı Sil',
                               onTap: _showDeleteAccountSheet,
                               iconColor: t.red,
@@ -750,7 +786,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
 
                     const SizedBox(height: 20),
-                    Text('Wallet Mark v1.0.0', style: TextStyle(color: t.textTert, fontSize: 12)),
+                    Text(_versionLabel, style: TextStyle(color: t.textTert, fontSize: 12)),
                   ],
                 ),
               ),

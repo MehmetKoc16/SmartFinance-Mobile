@@ -217,6 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text,
         password: _passwordController.text,
       );
+      if (!mounted) return;
 
       if (result['success']) {
         if (mounted) {
@@ -229,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _showError(result['message']);
       }
     } catch (e) {
-      _showError('Bağlantı hatası! Backend çalışıyor mu?');
+      if (mounted) _showError('Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

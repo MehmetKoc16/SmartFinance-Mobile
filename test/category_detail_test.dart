@@ -139,7 +139,12 @@ void main() {
       tester.view.devicePixelRatio = 3.0;
       tester.view.physicalSize = const Size(1080, 2400);
       addTearDown(tester.view.reset);
-      await setUpFakeApi(categories: kategoriler, transactionFilter: sunucu(giderler));
+      await setUpFakeApi(categories: kategoriler, transactionFilter: sunucu(giderler),
+        categorySummary: [for (final t in giderler) {
+          'categoryId': t['categoryId'],
+          'categoryName': kategoriler.firstWhere((c) => c['id'] == t['categoryId'])['name'],
+          'total': t['amount'], 'count': 1,
+        }]);
       await tester.pumpWidget(testApp(const DashboardScreen()));
       await settle(tester);
     }

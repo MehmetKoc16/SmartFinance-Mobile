@@ -67,8 +67,7 @@ void main() {
     await tester.pumpWidget(testApp(PdfImportScreen(initialFilePath: dosya.path)));
     await settle(tester);
     await tester.ensureVisible(find.text('Analiz Et'));
-    await tester.tap(find.text('Analiz Et'));
-    await settle(tester);
+    await analyzeSelectedFile(tester);
 
     expect(find.text('ECZANE'), findsOneWidget);
     expect(find.text('Tutarı kontrol edin'), findsOneWidget);

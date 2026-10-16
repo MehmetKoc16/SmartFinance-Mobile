@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:smartfinance_mobile/services/billing_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartfinance_mobile/screens/main_screen.dart';
 
 import 'helpers/test_app.dart';
+import 'helpers/test_store_gateway.dart';
 
 /// Regresyon (15.09.2026, gercek cihaz geri bildirimi): sekmeler route degil
 /// widget durumu oldugu icin MainScreen yigindaki tek ekrandi. Android geri
@@ -14,10 +16,14 @@ void main() {
   late List<String> platformCalls;
 
   setUp(() async {
+    BillingService.gateway = TestStoreGateway();
     await setUpFakeApi();
     platformCalls = [];
   });
-  tearDown(tearDownFakeApi);
+  tearDown(() async {
+    await BillingService.resetForTest();
+    tearDownFakeApi();
+  });
 
   Future<void> pumpMain(WidgetTester tester) async {
     final messenger = tester.binding.defaultBinaryMessenger;
@@ -29,6 +35,7 @@ void main() {
 
     await tester.pumpWidget(testApp(const MainScreen()));
     await settle(tester);
+    await pumpUntilDone(tester, BillingService().stopAppWide());
   }
 
   PageController controller(WidgetTester tester) => tester.widget<PageView>(find.byType(PageView)).controller!;

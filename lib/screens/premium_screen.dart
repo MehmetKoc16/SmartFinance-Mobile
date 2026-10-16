@@ -8,6 +8,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
 import '../services/billing_service.dart';
+import '../services/links.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -158,6 +159,10 @@ class _PremiumScreenState extends State<PremiumScreen>
                       "İstediğiniz zaman Google Play'den iptal edebilirsiniz.",
                       style: TextStyle(color: t.textSec, fontSize: 12, height: 1.5),
                     ),
+                    TextButton(onPressed: () => baglantiAc(context, gizlilikUrl),
+                      child: const Text('Gizlilik Politikası')),
+                    TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
+                      child: const Text('Abonelikleri yönet')),
                     TextButton(
                       onPressed: _billing.busy ? null : _billing.restore,
                       child: const Text('Satın alımları geri yükle'),
@@ -252,7 +257,11 @@ class _PremiumScreenState extends State<PremiumScreen>
               'Aboneliğinizi Play Store > Ödemeler ve abonelikler bölümünden yönetebilirsiniz.',
               style: TextStyle(color: t.textSec),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tamam'))],
+            actions: [
+              TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
+                child: const Text('Abonelikleri yönet')),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tamam')),
+            ],
           ),
         ),
         child: const Text('Aboneliği yönet'),

@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
+import '../services/links.dart';
 import 'main_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -60,6 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text,
         password: _passwordController.text,
       );
+      if (!mounted) return;
 
       if (result['success']) {
         if (mounted) {
@@ -69,7 +71,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _showError(result['message']);
       }
     } catch (e) {
-      _showError('Bağlantı hatası! Backend çalışıyor mu?');
+      if (mounted) _showError('Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -167,6 +169,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 12),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Kayıt olarak '),
+                      TextButton(onPressed: () => baglantiAc(context, gizlilikUrl),
+                        child: const Text('Gizlilik Politikası')),
+                      const Text("'nı okuduğunuzu kabul edersiniz."),
+                    ],
+                  ),
                   const SizedBox(height: 24),
 
                   Row(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../screens/notifications_screen.dart';
 import 'api_service.dart';
@@ -74,6 +75,18 @@ class PushService {
   PushService._();
 
   static bool enabled = false;
+  static const notificationsEnabledKey = 'notifications_enabled';
+  static int _generation = 0;
+
+  static Future<void> setNotificationsEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(notificationsEnabledKey, value);
+    if (value) {
+      await start();
+    } else {
+      await stop();
+    }
+  }
   static PushMessaging messaging = FirebasePushMessaging();
 
   /// MaterialApp'e baglanir; uygulama acikken gelen bildirim alt bantta gosterilir.
@@ -85,15 +98,22 @@ class PushService {
   /// Oturum acik ana ekran acildiginda cagrilir (girisin ve biyometrik
   /// kilidin ardindan). Tekrar cagrilmasi zararsiz.
   static Future<void> start() async {
+    final generation = ++_generation;
+    final prefs = await SharedPreferences.getInstance();
+    if (generation != _generation || prefs.getBool(notificationsEnabledKey) == false) return;
     if (!enabled) return;
     await _durdurDinleyicileri();
+    if (generation != _generation) return;
     try {
       // Android 13+ bildirim izni. Reddedildiyse token kaydedilmez:
       // gosterilemeyecek bildirim icin sunucu bosuna istek atmasin.
       if (!await messaging.requestPermission()) return;
+      if (generation != _generation) return;
 
       final token = await messaging.getToken();
+      if (generation != _generation) return;
       if (token != null) await _kaydet(token);
+      if (generation != _generation) return;
 
       _abonelikler
         ..add(messaging.onTokenRefresh.listen(_kaydet))
@@ -101,15 +121,17 @@ class PushService {
         ..add(messaging.onForegroundMessage.listen(_onPlandaGeldi));
 
       final ilk = await messaging.getInitialMessage();
+      if (generation != _generation) return;
       if (ilk != null) _acildi(ilk);
-    } catch (e) {
-      debugPrint('[Push] baslatilamadi: $e');
+    } catch (_) {
+      debugPrint('[Push] baslatilamadi');
     }
   }
 
   /// Cikista, oturum token'lari silinmeden ONCE cagrilir: sunucudaki kayit
   /// kimlik dogrulamasi istiyor.
   static Future<void> stop() async {
+    _generation++;
     if (!enabled) return;
     await _durdurDinleyicileri();
     final token = _token;
@@ -120,13 +142,14 @@ class PushService {
       }
       // Ayni telefonda baska hesapla giriste yeni token uretilsin.
       await messaging.deleteToken();
-    } catch (e) {
-      debugPrint('[Push] kayit silinemedi: $e');
+    } catch (_) {
+      debugPrint('[Push] kayit silinemedi');
     }
   }
 
   @visibleForTesting
   static Future<void> resetForTest() async {
+    _generation++;
     await _durdurDinleyicileri();
     _token = null;
     enabled = false;

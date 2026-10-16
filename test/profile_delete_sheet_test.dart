@@ -10,6 +10,29 @@ import 'helpers/test_app.dart';
 void main() {
   tearDown(tearDownFakeApi);
 
+  testWidgets('Kucuk ekranda abonelik uyarisi kaydirilir ve silme butonu guvenli alanda kalir', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    tester.view.physicalSize = const Size(1080, 1800);
+    tester.view.padding = const FakeViewPadding(bottom: 144);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 144);
+    addTearDown(tester.view.reset);
+    await setUpFakeApi();
+    await tester.pumpWidget(testApp(const ProfileScreen()));
+    await settle(tester);
+    await tester.scrollUntilVisible(find.text('Hesabı Sil'), 250);
+    await tester.tap(find.text('Hesabı Sil'));
+    await settle(tester);
+    await tester.ensureVisible(find.text('Premium aboneliğiniz varsa önce iptal edin'));
+    expect(tester.takeException(), null);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 750);
+    await settle(tester);
+    final button = find.widgetWithText(ElevatedButton, 'Hesabımı Kalıcı Olarak Sil');
+    await tester.ensureVisible(button);
+    await settle(tester);
+    expect(tester.getBottomLeft(button).dy, lessThanOrEqualTo(600 - 48));
+    expect(tester.takeException(), null);
+  });
+
   testWidgets('Hesabi Sil uyari karti sifre kutusuyla ayni genislikte', (tester) async {
     await setUpFakeApi();
     await tester.pumpWidget(testApp(const ProfileScreen()));

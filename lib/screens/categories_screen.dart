@@ -17,6 +17,7 @@ class CategoriesScreen extends StatefulWidget {
 class _CategoriesScreenState extends State<CategoriesScreen> {
   List<dynamic> _categories = [];
   Map<int, double> _spendByCategory = {};
+  bool _spendAvailable = false;
   Map<int, Map<String, dynamic>> _budgetByCategory = {};
   bool _isLoading = true;
 
@@ -30,14 +31,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final monthStart = DateTime(now.year, now.month, 1);
-      final monthEnd = DateTime(now.year, now.month + 1, 1).subtract(const Duration(seconds: 1));
-
       final results = await Future.wait([
         ApiService.authenticatedGet('/category'),
         ApiService.authenticatedGet(
-          '/transaction/filter?page=1&pageSize=100'
-          '&startDate=${monthStart.toIso8601String()}&endDate=${monthEnd.toIso8601String()}',
+          '/transaction/category-summary/${now.year}/${now.month}?type=2',
         ),
         ApiService.authenticatedGet('/budget/status/${now.year}/${now.month}'),
       ]);
@@ -47,12 +44,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       final budgetResponse = results[2];
 
       final Map<int, double> spend = {};
-      if (txResponse is Map && txResponse['items'] is List) {
-        for (final t in (txResponse['items'] as List)) {
-          final catId = t['categoryId'];
-          if (catId == null) continue;
-          final amt = (t['amount'] ?? 0).toDouble();
-          spend[catId as int] = (spend[catId] ?? 0) + amt;
+      if (txResponse is List) {
+        for (final row in txResponse) {
+          final id = row['categoryId'];
+          if (id is int) spend[id] = (row['total'] as num).toDouble();
         }
       }
 
@@ -69,6 +64,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         setState(() {
           _categories = categories is List ? categories : [];
           _spendByCategory = spend;
+          _spendAvailable = txResponse is List;
           _budgetByCategory = budgets;
           _isLoading = false;
         });
@@ -544,7 +540,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     ],
                   ),
                 ),
-                Text(formatTRY(spend), style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                if (_spendAvailable) Text(formatTRY(spend), style: TextStyle(color: t.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
                 if (!isIncome) ...[
                   const SizedBox(width: 8),
                   GestureDetector(

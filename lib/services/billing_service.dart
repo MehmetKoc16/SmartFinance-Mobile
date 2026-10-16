@@ -122,8 +122,8 @@ class PremiumPlan {
   }
 }
 
-/// Açık premium ekranları mağaza akışını paylaşır; son ekran kapanınca abonelik
-/// iptal edilir. Başlamış doğrulama devam eder. Premium kararı sunucudan alınır.
+/// Mağaza akışı oturum boyunca yaşar: ödeme sırasında Premium ekranının
+/// kapanması doğrulamayı ve Google Play onayını kesmemeli.
 class BillingService {
   BillingService._();
   static BillingService _instance = BillingService._();
@@ -150,6 +150,66 @@ class BillingService {
   bool pending = false;
   String? error;
   int _statusRevision = 0;
+  int _session = 0;
+  bool _appWide = false;
+  bool _recovering = false;
+  Future<void>? _starting;
+
+  Future<void> startAppWide() {
+    if (_appWide) return _starting ?? Future<void>.value();
+    _appWide = true;
+    final session = _session;
+    _recovering = true;
+    return _starting = _recover(session);
+  }
+
+  Future<void> _recover(int session) async {
+    try {
+      _listen();
+      final revision = _statusRevision;
+      final response = await ApiService.authenticatedGet('/subscription/status');
+      if (session != _session) return;
+      if (response is Map && response['isPremium'] is bool && !response.containsKey('error')) {
+        if (revision == _statusRevision) {
+          status = Map<String, dynamic>.from(response);
+          pending = response['purchasePending'] == true;
+        }
+        if (!isPremium) {
+          await gateway.restore();
+          if (session != _session) return;
+          await _queue;
+        }
+      }
+    } catch (_) {
+      // Sessiz açılış kurtarması kullanıcıya hata üretmez.
+    } finally {
+      if (session == _session) {
+        _recovering = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> stopAppWide() async {
+    _session++;
+    _appWide = false;
+    _recovering = false;
+    _starting = null;
+    final subscription = _subscription;
+    _subscription = null;
+    _queue = null;
+    _loading = null;
+    _unverified.clear();
+    status = null;
+    plans = {};
+    available = false;
+    busy = false;
+    pending = false;
+    error = null;
+    _statusRevision++;
+    await subscription?.cancel();
+    _notify();
+  }
 
   bool get isPremium => status?['isPremium'] == true;
   bool get canRetryVerification => _unverified.isNotEmpty;
@@ -159,17 +219,22 @@ class BillingService {
   }
 
   void _stopListening() {
+    // Ekran abonelikleri bitse de oturum dinleyicisi ödeme sonucunu almalı.
+    if (_appWide) return;
     final subscription = _subscription;
     _subscription = null;
     unawaited(subscription?.cancel());
   }
 
-  Future<void> _enqueue(List<PurchaseDetails> purchases) =>
-      _queue = (_queue ?? Future<void>.value())
-          .then((_) => _handlePurchases(purchases));
+  Future<void> _enqueue(List<PurchaseDetails> purchases) {
+    final session = _session;
+    final silent = _recovering || !_changes.hasListener;
+    return _queue = (_queue ?? Future<void>.value())
+        .then((_) => _handlePurchases(purchases, session, silent));
+  }
 
   void _listen() {
-    if (_subscription != null || !_changes.hasListener) return;
+    if (_subscription != null || (!_appWide && !_changes.hasListener)) return;
     _subscription = gateway.purchaseStream.listen(
       (purchases) {
         // Batch'ler de sırayla doğrulanır; eşzamanlı stream olayları çakışmaz.
@@ -177,18 +242,27 @@ class BillingService {
       },
       onError: (Object _) {
         busy = false;
-        error = 'Satın alma bilgileri alınamadı. Lütfen tekrar deneyin.';
+        if (!_recovering && _changes.hasListener) {
+          error = 'Satın alma bilgileri alınamadı. Lütfen tekrar deneyin.';
+        }
         _notify();
       },
     );
   }
 
-  Future<void> load() => _loading ??= _load().whenComplete(() => _loading = null);
+  Future<void> load() {
+    final session = _session;
+    return _loading ??= _load().whenComplete(() {
+      if (session == _session) _loading = null;
+    });
+  }
 
   Future<void> _load() async {
+    final session = _session;
     if (!canRetryVerification) error = null;
     final revision = _statusRevision;
     final response = await ApiService.authenticatedGet('/subscription/status');
+    if (session != _session) return;
     if (_statusRevision == revision) {
       if (response is Map && response['isPremium'] is bool &&
           !response.containsKey('error')) {
@@ -203,10 +277,13 @@ class BillingService {
     }
     try {
       _listen();
-      available = await gateway.isAvailable();
+      final storeAvailable = await gateway.isAvailable();
+      if (session != _session) return;
+      available = storeAvailable;
       plans = {};
       if (available && !isPremium) {
         final products = await gateway.queryProducts(productIds);
+        if (session != _session) return;
         if (products.error == null) {
           for (final product in products.productDetails) {
             if (!productIds.contains(product.id)) continue;
@@ -222,6 +299,7 @@ class BillingService {
         }
       }
     } catch (_) {
+      if (session != _session) return;
       available = false;
       plans = {};
     }
@@ -239,13 +317,17 @@ class BillingService {
     busy = true;
     error = null;
     _notify();
+    final session = _session;
     try {
-      if (!await gateway.buy(plan.product, accountToken: token)) {
+      final started = await gateway.buy(plan.product, accountToken: token);
+      if (session != _session) return;
+      if (!started) {
         busy = false;
         error = 'Satın alma başlatılamadı. Lütfen tekrar deneyin.';
         _notify();
       }
     } catch (_) {
+      if (session != _session) return;
       busy = false;
       error = 'Satın alma başlatılamadı. Lütfen tekrar deneyin.';
       _notify();
@@ -257,17 +339,22 @@ class BillingService {
     busy = true;
     error = null;
     _notify();
+    final session = _session;
     try {
       _listen();
       await gateway.restore();
+      if (session != _session) return;
       // restore() hiç olay üretmeyebilir; buton o durumda kilitli kalmaz.
       await _queue;
+      if (session != _session) return;
       if (!canRetryVerification) await load();
     } catch (_) {
-      error = 'Satın alımlar geri yüklenemedi. Lütfen tekrar deneyin.';
+      if (session == _session) error = 'Satın alımlar geri yüklenemedi. Lütfen tekrar deneyin.';
     } finally {
-      busy = false;
-      _notify();
+      if (session == _session) {
+        busy = false;
+        _notify();
+      }
     }
   }
 
@@ -278,8 +365,9 @@ class BillingService {
     return _enqueue(_unverified.values.toList());
   }
 
-  Future<void> _handlePurchases(List<PurchaseDetails> purchases) async {
+  Future<void> _handlePurchases(List<PurchaseDetails> purchases, int session, bool silent) async {
     for (final purchase in purchases) {
+      if (session != _session) return;
       if (!productIds.contains(purchase.productID)) continue;
       switch (purchase.status) {
         case PurchaseStatus.pending:
@@ -290,7 +378,7 @@ class BillingService {
         case PurchaseStatus.error:
           pending = false;
           busy = false;
-          error = 'Ödeme tamamlanamadı. Lütfen Google Play bilgilerinizi kontrol edip tekrar deneyin.';
+          if (!silent) error = 'Ödeme tamamlanamadı. Lütfen Google Play bilgilerinizi kontrol edip tekrar deneyin.';
           _notify();
         case PurchaseStatus.canceled:
           busy = false;
@@ -299,12 +387,12 @@ class BillingService {
           _notify();
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _verify(purchase);
+          await _verify(purchase, session, silent);
       }
     }
   }
 
-  Future<void> _verify(PurchaseDetails purchase) async {
+  Future<void> _verify(PurchaseDetails purchase, int session, bool silent) async {
     final token = purchase.verificationData.serverVerificationData;
     final key = '${purchase.productID}:$token';
     busy = true;
@@ -314,18 +402,21 @@ class BillingService {
     _notify();
     try {
         if (token.isEmpty) {
-          error = 'Satın alma doğrulama bilgisi eksik. Lütfen tekrar deneyin.';
+          if (!silent) error = 'Satın alma doğrulama bilgisi eksik. Lütfen tekrar deneyin.';
           return;
         }
         final response = await ApiService.authenticatedPost('/subscription/verify', {
           'productId': purchase.productID,
           'purchaseToken': token,
-        });
+        }, isCurrentSession: () => session == _session);
+        if (session != _session) return;
         if (response is! Map || response.containsKey('error') ||
             response['isPremium'] is! bool) {
-          error = response is Map && response['error'] != null
-              ? response['error'].toString()
-              : 'Satın alma doğrulanamadı. Lütfen tekrar deneyin.';
+          if (!silent) {
+            error = response is Map && response['error'] != null
+                ? response['error'].toString()
+                : 'Satın alma doğrulanamadı. Lütfen tekrar deneyin.';
+          }
           return;
         }
         status = Map<String, dynamic>.from(response);
@@ -333,19 +424,25 @@ class BillingService {
         pending = response['purchasePending'] == true;
       if (purchase.pendingCompletePurchase) {
         await gateway.completePurchase(purchase);
+        if (session != _session) return;
       }
       _unverified.remove(key);
     } catch (_) {
-      error = 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.';
+      if (session == _session && !silent) error = 'Satın alma işlemi tamamlanamadı. Lütfen tekrar deneyin.';
     } finally {
-      busy = false;
-      _notify();
+      if (session == _session) {
+        busy = false;
+        _notify();
+      }
     }
   }
 
   @visibleForTesting
   static Future<void> resetForTest() async {
+    _instance._session++;
     await _instance._subscription?.cancel();
+    await _instance._starting;
+    await _instance._loading;
     await _instance._queue;
     await _instance._changes.close();
     _instance = BillingService._();
