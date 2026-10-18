@@ -61,12 +61,30 @@ void main() {
   }
 
   linksTest('Premium abonelik yonetim baglantisi dogru URL acar', (tester) async {
+    await pumpUntilDone(tester, setUpFakeApi(subscriptionStatus: {'isPremium': false}));
     await openScreen(tester, const PremiumScreen());
     final link = find.text('Abonelikleri yönet');
+    expect(link, findsOneWidget);
+    expect(find.text('Aboneliği yönet'), findsNothing);
     await tester.ensureVisible(link);
     await tester.tap(link);
     await settle(tester);
     expect(opened.single.toString(), abonelikYonetimUrl);
+  });
+
+  linksTest('PremiumUyesi_TekYonetBaglantisiGorur', (tester) async {
+    await pumpUntilDone(
+      tester,
+      setUpFakeApi(subscriptionStatus: {'isPremium': true}),
+    );
+    await openScreen(tester, const PremiumScreen());
+    expect(find.text('Aboneliği yönet'), findsOneWidget);
+    expect(find.text('Abonelikleri yönet'), findsNothing);
+    expect(find.text('Gizlilik Politikası'), findsOneWidget);
+    await tester.tap(find.text('Aboneliği yönet'));
+    await settle(tester);
+    expect(opened.single.toString(), abonelikYonetimUrl);
+    expect(find.byType(AlertDialog), findsNothing);
   });
 
   linksTest('Hesap silmede abonelik uyarisi ve yonetim baglantisi gorunur', (tester) async {

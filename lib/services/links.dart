@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'app_lock.dart';
 
 const gizlilikUrl = 'https://walletmark.com.tr/gizlilik';
 const abonelikYonetimUrl = 'https://play.google.com/store/account/subscriptions?package=com.walletmark.app';
@@ -15,7 +16,7 @@ void resetLinkLauncherForTest() => linkLauncher = _launch;
 Future<void> baglantiAc(BuildContext context, String url) async {
   var opened = false;
   try {
-    opened = await linkLauncher(Uri.parse(url));
+    opened = await AppLock.suppress(linkLauncher(Uri.parse(url)));
   } catch (_) {
     opened = false;
   }

@@ -10,6 +10,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 import 'premium_screen.dart';
 
 class TechnicalAnalysisScreen extends StatefulWidget {
@@ -36,7 +37,8 @@ class _LineSpec {
   const _LineSpec(this.valueKey, this.label, this.color, {this.dashed = false});
 }
 
-class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
+class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen>
+    with AmountPrivacyListener {
   static const _prefsKey = 'selected_indicators';
 
   // Osilator turundeki gostergelerden sinir degeri (asiri alim/satim) olanlarin
@@ -527,7 +529,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     // goren HISSE ADEDI'dir, TL degil — birim yazilmayinca "adet mi TL mi"
     // diye kafa karisiyordu.
     addRow('Ortalama hacim (adet)', 'averageVolume', (v) => formatCompactNumber(v));
-    addRow('Piyasa değeri', 'marketCap', (v) => '₺${formatCompactNumber(v)}');
+    addRow('Piyasa değeri', 'marketCap', (v) => formatCompactTRY(v));
 
     // F/K, sayisal addRow yerine ozel ele aliniyor: sirket son 12 ayda zarar
     // ettiyse (IsLossMaking) deger hicbir zaman gelmiyor ama bunun sebebi
@@ -542,9 +544,9 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
     }
 
     addRow('PD/DD', 'priceToBook', (v) => v.toStringAsFixed(2));
-    addRow('Özsermaye değeri', 'equityValue', (v) => '₺${formatCompactNumber(v)}');
+    addRow('Özsermaye değeri', 'equityValue', (v) => formatCompactTRY(v));
     addRow('Özsermaye karlılık', 'returnOnEquity', (v) => formatPercent(v));
-    addRow('FAVÖK', 'ebitda', (v) => '₺${formatCompactNumber(v)}');
+    addRow('FAVÖK', 'ebitda', (v) => formatCompactTRY(v));
     addRow('Net kar marj', 'profitMargin', (v) => formatPercent(v));
     addRow('Brüt kar marj', 'grossMargin', (v) => formatPercent(v));
 
@@ -792,6 +794,7 @@ class _TechnicalAnalysisScreenState extends State<TechnicalAnalysisScreen> {
   /// ~7.000 TL, bir kripto ~4,96 TL olabiliyor. Tam sayiya yuvarlanirsa
   /// dusuk fiyatli varliklarda eksenin tamami ayni sayiyi gosterir.
   static String _formatAxis(double value, double range) {
+    if (AmountPrivacy.gizli.value) return '₺•••';
     if (range >= 1000) return value.toStringAsFixed(0);
     if (range >= 10) return value.toStringAsFixed(0);
     if (range >= 1) return value.toStringAsFixed(1);

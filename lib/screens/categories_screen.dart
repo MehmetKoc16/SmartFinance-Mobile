@@ -6,6 +6,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -14,7 +15,8 @@ class CategoriesScreen extends StatefulWidget {
   State<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen> {
+class _CategoriesScreenState extends State<CategoriesScreen>
+    with AmountPrivacyListener {
   List<dynamic> _categories = [];
   Map<int, double> _spendByCategory = {};
   bool _spendAvailable = false;

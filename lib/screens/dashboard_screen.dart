@@ -6,6 +6,8 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
+import '../services/transaction_trash.dart';
 import '../widgets/transaction_card.dart';
 import 'category_detail_screen.dart';
 import 'notifications_screen.dart';
@@ -39,7 +41,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with AmountPrivacyListener {
   double _totalIncome = 0;
   double _totalExpense = 0;
   double? _balanceChangePct;
@@ -59,10 +62,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    TransactionTrash.changes.addListener(_loadDashboardData);
     final now = DateTime.now();
     _selectedYear = now.year;
     _selectedMonth = now.month;
     _loadDashboardData();
+  }
+
+  @override
+  void dispose() {
+    TransactionTrash.changes.removeListener(_loadDashboardData);
+    super.dispose();
   }
 
   void _changeMonth(int direction) {
@@ -262,6 +272,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Row(
                             children: [
+                              IconButton(
+                                key: const Key('amount-privacy-toggle'),
+                                tooltip: AmountPrivacy.gizli.value ? 'Tutarları göster' : 'Tutarları gizle',
+                                onPressed: AmountPrivacy.toggle,
+                                icon: Icon(AmountPrivacy.gizli.value ? LucideIcons.eyeOff : LucideIcons.eye,
+                                  color: t.text, size: 18),
+                              ),
                               GestureDetector(
                                 onTap: () async {
                                   await Navigator.push(
@@ -270,7 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   );
                                   // Bildirim ekraninda okundu isaretlenmis olabilir —
                                   // zildeki rozet sayisi guncel kalsin diye tazele.
-                                  _loadDashboardData();
+                                  if (mounted) _loadDashboardData();
                                 },
                                 child: Stack(
                                   clipBehavior: Clip.none,

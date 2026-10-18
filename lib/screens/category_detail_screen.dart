@@ -6,6 +6,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 import '../widgets/transaction_card.dart';
 
 /// Tek kategorinin aylik ozeti ve islemleri. Ana sayfadaki "Kategoriye Gore
@@ -38,7 +39,8 @@ class _AyVerisi {
   double get toplam => islemler.fold(0.0, (t, i) => t + (i['amount'] as num).toDouble());
 }
 
-class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
+class _CategoryDetailScreenState extends State<CategoryDetailScreen>
+    with AmountPrivacyListener {
   // Sunucu sayfa basina en fazla 100 islem donduruyor. Toplam dogru olsun diye
   // tum sayfalar cekiliyor; 20 sayfa (2.000 islem) bir ay icin fazlasiyla yeterli.
   static const _sayfaBoyutu = 100;

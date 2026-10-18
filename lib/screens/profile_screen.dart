@@ -8,12 +8,14 @@ import '../core/theme/app_tokens.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 import '../services/links.dart';
 import '../services/push_service.dart';
 import '../services/billing_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'login_screen.dart';
 import 'premium_screen.dart';
+import 'trash_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,7 +24,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with AmountPrivacyListener {
   bool _isLoading = true;
   double _totalIncome = 0;
   double _totalExpense = 0;
@@ -691,6 +694,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle',
                               onTap: _showEditProfileSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(t, LucideIcons.eyeOff, 'Tutarları gizle',
+                            trailing: Switch(
+                              value: AmountPrivacy.gizli.value,
+                              onChanged: AmountPrivacy.setHidden,
+                            )),
+                          _settingsRow(t, LucideIcons.trash2, 'Çöp kutusu',
+                            onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const TrashScreen())),
+                            trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(
                             t,
                             LucideIcons.bell,

@@ -8,6 +8,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 import 'technical_analysis_screen.dart';
 
 class InvestmentsScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class InvestmentsScreen extends StatefulWidget {
   State<InvestmentsScreen> createState() => _InvestmentsScreenState();
 }
 
-class _InvestmentsScreenState extends State<InvestmentsScreen> {
+class _InvestmentsScreenState extends State<InvestmentsScreen>
+    with AmountPrivacyListener {
   List<Map<String, dynamic>> _investments = [];
   Map<String, dynamic>? _summary;
   bool _isLoading = true;

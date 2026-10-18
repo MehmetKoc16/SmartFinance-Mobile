@@ -6,6 +6,7 @@ import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import 'api_service.dart';
+import 'app_lock.dart';
 
 /// Yerel mağaza eklentisinin testte değiştirilebilen kısmı.
 abstract class StoreGateway {
@@ -154,6 +155,13 @@ class BillingService {
   bool _appWide = false;
   bool _recovering = false;
   Future<void>? _starting;
+  Completer<void>? _purchasePrompt;
+
+  void _endPurchasePrompt() {
+    final prompt = _purchasePrompt;
+    _purchasePrompt = null;
+    if (prompt != null && !prompt.isCompleted) prompt.complete();
+  }
 
   Future<void> startAppWide() {
     if (_appWide) return _starting ?? Future<void>.value();
@@ -175,7 +183,7 @@ class BillingService {
           pending = response['purchasePending'] == true;
         }
         if (!isPremium) {
-          await gateway.restore();
+          await AppLock.suppress(gateway.restore());
           if (session != _session) return;
           await _queue;
         }
@@ -191,6 +199,7 @@ class BillingService {
   }
 
   Future<void> stopAppWide() async {
+    _endPurchasePrompt();
     _session++;
     _appWide = false;
     _recovering = false;
@@ -241,6 +250,7 @@ class BillingService {
         _enqueue(purchases);
       },
       onError: (Object _) {
+        _endPurchasePrompt();
         busy = false;
         if (!_recovering && _changes.hasListener) {
           error = 'Satın alma bilgileri alınamadı. Lütfen tekrar deneyin.';
@@ -319,15 +329,22 @@ class BillingService {
     _notify();
     final session = _session;
     try {
-      final started = await gateway.buy(plan.product, accountToken: token);
+      // buyNonConsumable mağaza penceresi kapanmadan true dönebilir.
+      // Koruma, mağazanın pending/purchased/canceled/error olayına kadar sürer.
+      final prompt = Completer<void>();
+      _purchasePrompt = prompt;
+      unawaited(AppLock.suppress(prompt.future));
+      final started = await AppLock.suppress(gateway.buy(plan.product, accountToken: token));
       if (session != _session) return;
       if (!started) {
+        _endPurchasePrompt();
         busy = false;
         error = 'Satın alma başlatılamadı. Lütfen tekrar deneyin.';
         _notify();
       }
     } catch (_) {
       if (session != _session) return;
+      _endPurchasePrompt();
       busy = false;
       error = 'Satın alma başlatılamadı. Lütfen tekrar deneyin.';
       _notify();
@@ -342,7 +359,7 @@ class BillingService {
     final session = _session;
     try {
       _listen();
-      await gateway.restore();
+      await AppLock.suppress(gateway.restore());
       if (session != _session) return;
       // restore() hiç olay üretmeyebilir; buton o durumda kilitli kalmaz.
       await _queue;
@@ -369,6 +386,7 @@ class BillingService {
     for (final purchase in purchases) {
       if (session != _session) return;
       if (!productIds.contains(purchase.productID)) continue;
+      _endPurchasePrompt();
       switch (purchase.status) {
         case PurchaseStatus.pending:
           pending = true;
@@ -439,6 +457,7 @@ class BillingService {
 
   @visibleForTesting
   static Future<void> resetForTest() async {
+    _instance._endPurchasePrompt();
     _instance._session++;
     await _instance._subscription?.cancel();
     await _instance._starting;

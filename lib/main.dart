@@ -13,6 +13,8 @@ import 'screens/biometric_lock_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/api_service.dart';
+import 'services/app_lock.dart';
+import 'services/amount_privacy.dart';
 import 'services/biometric_service.dart';
 import 'services/push_service.dart';
 
@@ -24,6 +26,7 @@ void main() async {
   GoogleFonts.config.allowRuntimeFetching = false;
   LicenseRegistry.addLicense(_yaziTipiLisanslari);
   await initializeDateFormatting('tr_TR', null);
+  await AmountPrivacy.load();
   // Anlik bildirimler icin. Basarisiz olursa (Play Hizmetleri yok vb.)
   // uygulama bildirimsiz calismaya devam eder; zil ikonu yine calisir.
   try {
@@ -69,6 +72,7 @@ class SmartFinanceApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeController.mode,
       navigatorKey: ApiService.navigatorKey,
+      builder: (context, child) => AppLock(child: child!),
       scaffoldMessengerKey: PushService.scaffoldMessengerKey,
       home: const SplashScreen(),
       routes: {

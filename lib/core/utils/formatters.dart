@@ -1,10 +1,12 @@
 import 'package:intl/intl.dart';
+import '../../services/amount_privacy.dart';
 
 final _tryFull = NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 2);
 final _tryWhole = NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 0);
 
 /// Türkçe binlik/ondalık ayraçlarıyla TL tutarı biçimlendirir (₺1.234,56).
-String formatTRY(num value, {bool decimals = true}) {
+String formatTRY(num value, {bool decimals = true, bool respectPrivacy = true}) {
+  if (respectPrivacy && AmountPrivacy.gizli.value) return '₺•••';
   return (decimals ? _tryFull : _tryWhole).format(value);
 }
 
@@ -20,6 +22,9 @@ String formatCompactNumber(num value) {
   if (abs >= 1e3) return '${_trNumber2.format(value / 1e3)} Bin';
   return _trNumber2.format(value);
 }
+
+String formatCompactTRY(num value) => AmountPrivacy.gizli.value
+    ? '₺•••' : '₺${formatCompactNumber(value)}';
 
 /// Oran (0.082 gibi) alıp yüzde olarak biçimlendirir (%8,20).
 String formatPercent(num value) {

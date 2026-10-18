@@ -7,6 +7,8 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
+import '../services/transaction_trash.dart';
 import '../widgets/transaction_card.dart';
 
 class TransactionsScreen extends StatefulWidget {
@@ -16,7 +18,8 @@ class TransactionsScreen extends StatefulWidget {
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
-class _TransactionsScreenState extends State<TransactionsScreen> {
+class _TransactionsScreenState extends State<TransactionsScreen>
+    with AmountPrivacyListener {
   List<dynamic> _transactions = [];
   Map<int, String> _categoryMap = {};
   List<dynamic> _categories = [];
@@ -31,12 +34,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+    TransactionTrash.changes.addListener(_loadTransactions);
     _loadCategories();
     _loadTransactions();
   }
 
   @override
   void dispose() {
+    TransactionTrash.changes.removeListener(_loadTransactions);
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -45,6 +50,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _loadCategories() async {
     try {
       final categories = await ApiService.authenticatedGet('/category');
+      if (!mounted) return;
       if (categories is List) {
         setState(() {
           _categories = categories;
@@ -167,8 +173,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ],
       ),
     );
+    if (!mounted) return;
     if (confirm == true) {
       final result = await ApiService.authenticatedDelete('/transaction/$id');
+      if (!mounted) return;
       if (result is Map && result.containsKey('error')) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -183,12 +191,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         return;
       }
       setState(() {
-        _transactions.removeAt(index);
+        _transactions.removeWhere((transaction) => transaction['id'] == id);
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('İşlem silindi.'),
+            action: SnackBarAction(label: 'Geri al', onPressed: () async {
+              final error = await TransactionTrash.restore(id);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(error ?? 'İşlem geri alındı'),
+              ));
+            }),
             backgroundColor: t.red,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

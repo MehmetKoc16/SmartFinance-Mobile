@@ -9,6 +9,7 @@ import 'package:smartfinance_mobile/core/theme/app_theme.dart';
 import 'package:smartfinance_mobile/screens/premium_screen.dart';
 import 'package:smartfinance_mobile/screens/profile_screen.dart';
 import 'package:smartfinance_mobile/services/billing_service.dart';
+import 'package:smartfinance_mobile/services/links.dart';
 
 import 'helpers/test_app.dart';
 
@@ -350,6 +351,9 @@ void main() {
 
   /// NEDEN: Mevcut premium üyeye ikinci abonelik satılmamalı ve yenileme tarihi açıklanmalı.
   premiumTest('Premium kullanıcı plan yerine üyelik ve yenileme bilgisi görür', (tester) async {
+    final opened = <Uri>[];
+    linkLauncher = (uri) async { opened.add(uri); return true; };
+    addTearDown(resetLinkLauncherForTest);
     await setUpFakeApi(subscriptionStatus: _status(premium: true));
     await _open(tester);
     expect(find.text('Premium üyesiniz'), findsOneWidget);
@@ -358,7 +362,10 @@ void main() {
     expect(find.byKey(const Key('premium-buy')), findsNothing);
     await tester.tap(find.text('Aboneliği yönet'));
     await settle(tester);
-    expect(find.text('Aboneliğinizi Play Store > Ödemeler ve abonelikler bölümünden yönetebilirsiniz.'), findsOneWidget);
+    expect(opened.single.toString(), abonelikYonetimUrl);
+    expect(find.text('Aboneliği yönet'), findsOneWidget);
+    expect(find.text('Abonelikleri yönet'), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
   });
 
   /// NEDEN: Otomatik yenileme kapalıysa tarih bir sonraki tahsilat gibi sunulmamalı.

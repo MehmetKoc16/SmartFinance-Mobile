@@ -23,6 +23,10 @@ final Map<String, dynamic> fakeApiBodies = {};
 Future<void> setUpFakeApi({
   List<Map<String, dynamic>> categories = const [],
   List<Map<String, dynamic>> transactions = const [],
+  List<Map<String, dynamic>> deletedTransactions = const [],
+  int restoreStatus = 200,
+  int deletedStatus = 200,
+  Map<String, dynamic> transactionSummary = const {},
   Object categorySummary = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,
@@ -53,6 +57,10 @@ Future<void> setUpFakeApi({
     if ((request.headers['Content-Type'] ?? '').startsWith('application/json') && request.body.isNotEmpty) {
       fakeApiBodies[path] = jsonDecode(request.body);
     }
+    if (path.endsWith('/restore')) {
+      return http.Response(jsonEncode(restoreStatus == 200 ? {'id': 71} : {}), restoreStatus,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+    }
     final Object body;
     if (path.endsWith('/subscription/verify')) {
       if (subscriptionVerifyDelay > Duration.zero) {
@@ -69,7 +77,12 @@ Future<void> setUpFakeApi({
       return http.Response(jsonEncode(symbolSearch ?? []), symbolSearchStatus,
           headers: {'content-type': 'application/json; charset=utf-8'});
     }
-    if (path.endsWith('/pdfimport/parse')) {
+    if (path.endsWith('/transaction/deleted')) {
+      return http.Response(jsonEncode(deletedTransactions), deletedStatus,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+    } else if (path.contains('/transaction/summary/')) {
+      body = transactionSummary;
+    } else if (path.endsWith('/pdfimport/parse')) {
       body = pdfParseResult ?? {};
     } else if (path.endsWith('/pdfimport/parse-words')) {
       body = pdfParseWordsResult ?? {};

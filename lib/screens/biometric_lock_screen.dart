@@ -5,6 +5,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
 import '../services/biometric_service.dart';
+import '../services/app_lock.dart';
 import 'login_screen.dart';
 import 'main_screen.dart';
 
@@ -12,7 +13,11 @@ import 'main_screen.dart';
 // Biyometrik dogrulama basarisiz olursa kullanici "Cikis Yap" ile sifreyle
 // giris yapmaya donebilir — sensor arizali/erisilemez olsa bile kilitte kalmaz.
 class BiometricLockScreen extends StatefulWidget {
-  const BiometricLockScreen({super.key});
+  const BiometricLockScreen({super.key, this.onUnlocked, this.onLoggedOut,
+    this.authenticate = BiometricService.authenticate});
+  final VoidCallback? onUnlocked;
+  final VoidCallback? onLoggedOut;
+  final Future<bool> Function() authenticate;
 
   @override
   State<BiometricLockScreen> createState() => _BiometricLockScreenState();
@@ -34,11 +39,15 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
       _failed = false;
     });
 
-    final success = await BiometricService.authenticate();
+    final success = await AppLock.suppress(widget.authenticate());
 
     if (!mounted) return;
 
     if (success) {
+      if (widget.onUnlocked != null) {
+        widget.onUnlocked!();
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainScreen()),
@@ -54,6 +63,10 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
   Future<void> _logout() async {
     await ApiService.logout();
     if (!mounted) return;
+    if (widget.onLoggedOut != null) {
+      widget.onLoggedOut!();
+      return;
+    }
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),

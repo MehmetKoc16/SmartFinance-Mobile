@@ -7,6 +7,8 @@ import '../core/constants/category_style.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
+import '../services/app_lock.dart';
 import '../services/statement_ocr.dart';
 import '../services/pdf_text_probe.dart';
 
@@ -23,7 +25,8 @@ class PdfImportScreen extends StatefulWidget {
   State<PdfImportScreen> createState() => _PdfImportScreenState();
 }
 
-class _PdfImportScreenState extends State<PdfImportScreen> {
+class _PdfImportScreenState extends State<PdfImportScreen>
+    with AmountPrivacyListener {
   // Aşama: 0=dosya seç, 1=önizleme, 2=sonuç
   int _step = 0;
   bool _isLoading = false;
@@ -80,10 +83,10 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     // veriyor; birden fazla dosya secilirse eski kod (.files.single) cokerdi.
     // pickFile() (tekil) tam bizim kullanim seklimize uyuyor: tek dosya
     // donuyor, iptalde null.
-    final PlatformFile? file = await FilePicker.pickFile(
+    final PlatformFile? file = await AppLock.suppress(FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'xlsx'],
-    );
+    ));
     if (!mounted) return;
     if (file != null && file.path != null) {
       setState(() {

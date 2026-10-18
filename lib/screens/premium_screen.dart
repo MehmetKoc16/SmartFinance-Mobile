@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
+import '../services/amount_privacy.dart';
 import '../services/billing_service.dart';
 import '../services/links.dart';
 
@@ -18,7 +19,7 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen>
-    with WidgetsBindingObserver {
+    with AmountPrivacyListener, WidgetsBindingObserver {
   final _billing = BillingService();
   StreamSubscription<void>? _subscription;
   bool _loading = true;
@@ -161,7 +162,8 @@ class _PremiumScreenState extends State<PremiumScreen>
                     ),
                     TextButton(onPressed: () => baglantiAc(context, gizlilikUrl),
                       child: const Text('Gizlilik Politikası')),
-                    TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
+                    if (!_billing.isPremium)
+                      TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
                       child: const Text('Abonelikleri yönet')),
                     TextButton(
                       onPressed: _billing.busy ? null : _billing.restore,
@@ -227,7 +229,8 @@ class _PremiumScreenState extends State<PremiumScreen>
                 ),
               ],
               const SizedBox(height: 8),
-              Text(plan.description, style: TextStyle(color: t.text, fontSize: 14, height: 1.4)),
+              Text(AmountPrivacy.gizli.value ? '₺•••/${plan.yearly ? 'yıl' : 'ay'}' : plan.description,
+                  style: TextStyle(color: t.text, fontSize: 14, height: 1.4)),
             ]),
           ),
         ),
@@ -248,22 +251,7 @@ class _PremiumScreenState extends State<PremiumScreen>
             style: TextStyle(color: t.textSec)),
       const SizedBox(height: 16),
       OutlinedButton(
-        onPressed: () => showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: t.card,
-            title: Text('Aboneliği yönet', style: TextStyle(color: t.text)),
-            content: Text(
-              'Aboneliğinizi Play Store > Ödemeler ve abonelikler bölümünden yönetebilirsiniz.',
-              style: TextStyle(color: t.textSec),
-            ),
-            actions: [
-              TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
-                child: const Text('Abonelikleri yönet')),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tamam')),
-            ],
-          ),
-        ),
+        onPressed: () => baglantiAc(context, abonelikYonetimUrl),
         child: const Text('Aboneliği yönet'),
       ),
     ]);
