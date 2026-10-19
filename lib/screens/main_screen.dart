@@ -11,6 +11,7 @@ import 'categories_screen.dart';
 import 'profile_screen.dart';
 import 'investments_screen.dart';
 import 'pdf_import_screen.dart';
+import 'transfer_screen.dart';
 import '../services/push_service.dart';
 import '../services/billing_service.dart';
 
@@ -60,6 +61,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _refreshPages() {
+    if (!mounted) return;
     setState(() {
       _pages[0] = DashboardScreen(
         key: UniqueKey(),
@@ -242,11 +244,12 @@ class _MainScreenState extends State<MainScreen> {
     final t = AppTokens.of(context);
     showAppBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: t.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
+      builder: (context) => SingleChildScrollView(child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -260,7 +263,16 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 20),
             _buildAddOption(t, LucideIcons.squarePen, 'Elle Ekle', 'Gelir veya gider ekle', t.brand, onTap: () async {
               Navigator.pop(context);
-              final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionScreen()));
+              final result = await Navigator.push(this.context, MaterialPageRoute(builder: (_) => const AddTransactionScreen()));
+              if (!mounted) return;
+              if (result == true) _refreshPages();
+            }),
+            const SizedBox(height: 12),
+            _buildAddOption(t, LucideIcons.arrowRightLeft, 'Transfer / Kart ödemesi', 'Hesaplar arasında para aktar', t.brand, onTap: () async {
+              Navigator.pop(context);
+              final result = await Navigator.push<bool>(this.context,
+                MaterialPageRoute(builder: (_) => const TransferScreen()));
+              if (!mounted) return;
               if (result == true) _refreshPages();
             }),
             const SizedBox(height: 12),
@@ -276,7 +288,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 16),
           ],
         ),
-      ),
+      )),
     );
   }
 

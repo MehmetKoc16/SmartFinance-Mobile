@@ -41,6 +41,7 @@ Future<void> setUpFakeApi({
   // Verilirse /transaction/filter sorguya gore cevaplanir (kategori, tarih, sayfa).
   Map<String, dynamic> Function(Uri uri)? transactionFilter,
   List<Map<String, dynamic>> budgetStatus = const [],
+  Future<http.Response?> Function(http.Request request)? accountApi,
 }) async {
   fakeApiRequests.clear();
   fakeApiBodies.clear();
@@ -57,6 +58,8 @@ Future<void> setUpFakeApi({
     if ((request.headers['Content-Type'] ?? '').startsWith('application/json') && request.body.isNotEmpty) {
       fakeApiBodies[path] = jsonDecode(request.body);
     }
+    final accountResponse = await accountApi?.call(request);
+    if (accountResponse != null) return accountResponse;
     if (path.endsWith('/restore')) {
       return http.Response(jsonEncode(restoreStatus == 200 ? {'id': 71} : {}), restoreStatus,
           headers: {'content-type': 'application/json; charset=utf-8'});
@@ -90,6 +93,8 @@ Future<void> setUpFakeApi({
       body = currentSubscriptionStatus ?? {};
     } else if (path.contains('/transaction/category-summary/')) {
       body = categorySummary;
+    } else if (path == '/api/account' && request.method == 'GET') {
+      body = [];
     } else if (path.endsWith('/category')) {
       body = categories;
     } else if (path.endsWith('/transaction/filter')) {

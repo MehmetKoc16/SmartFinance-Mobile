@@ -3,6 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_tokens.dart';
 import '../services/api_service.dart';
+import '../models/account.dart';
+import '../services/account_service.dart';
+import '../widgets/account_widgets.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -18,6 +21,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   int? _selectedCategoryId;
   List<dynamic> _categories = [];
+  List<Account> _accounts = [];
+  int? _accountId;
+  bool _accountsFailed = false;
   bool _isLoading = false;
   bool _isCategoriesLoading = true;
 
@@ -25,6 +31,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _loadCategories();
+    _loadAccounts();
   }
 
   @override
@@ -57,6 +64,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  Future<void> _loadAccounts() async {
+    try {
+      final accounts = await AccountService.list();
+      if (!mounted) return;
+      setState(() { _accounts = accounts; _accountsFailed = false; });
+    } catch (_) { if (mounted) setState(() => _accountsFailed = true); }
+  }
+
   // Seçilen işlem tipine uygun olmayan kategori seçiliyse temizle (ör. Gelir'e
   // geçince önceden seçili bir gider kategorisi kalmasın).
   List<dynamic> get _filteredCategories =>
@@ -70,7 +85,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (picked != null) {
+    if (mounted && picked != null) {
       setState(() => _selectedDate = picked);
     }
   }
@@ -106,11 +121,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         'transactionDate': _selectedDate.toIso8601String(),
         'type': _selectedType,
         'categoryId': _selectedCategoryId,
+        'accountId': _accountId,
       });
+
+      if (!mounted) return;
 
       if (response.containsKey('error')) {
         _showError(response['error']);
       } else {
+        AccountService.notifyChanged();
         if (mounted) {
           final t = AppTokens.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +153,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     final t = AppTokens.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -397,6 +417,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
               ),
 
+              if (_accountsFailed) TextButton(onPressed: _loadAccounts,
+                child: const Text('Hesaplar yüklenemedi. Tekrar dene')),
+              if (_accounts.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                KeyedSubtree(key: const Key('transaction-account'), child: AccountPicker(
+                  accounts: _accounts, value: _accountId,
+                  onChanged: (value) => setState(() => _accountId = value))),
+              ],
               const SizedBox(height: 36),
 
               SizedBox(

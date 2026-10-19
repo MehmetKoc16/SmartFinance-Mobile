@@ -152,6 +152,8 @@ void main() {
     testWidgets('Kategoriye dokununca detay ekrani acilir', (tester) async {
       await anaSayfa(tester);
 
+      // NEDEN: Hesaplarım bölümü dağılım kartını aşağı taşıdığı için önce kaydır.
+      await tester.ensureVisible(find.text('Fatura'));
       await tester.tap(find.text('Fatura'));
       await settle(tester);
 

@@ -10,6 +10,9 @@ import '../services/api_service.dart';
 import '../services/amount_privacy.dart';
 import '../services/transaction_trash.dart';
 import '../widgets/transaction_card.dart';
+import '../models/account.dart';
+import '../services/account_service.dart';
+import '../widgets/account_widgets.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -23,6 +26,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   List<dynamic> _transactions = [];
   Map<int, String> _categoryMap = {};
   List<dynamic> _categories = [];
+  List<Account> _accounts = [];
+  int? _accountFilter;
+  int _accountsRequest = 0;
+  int _transactionsRequest = 0;
   bool _isLoading = true;
   int _currentPage = 1;
   int _totalPages = 1;
@@ -35,13 +42,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   void initState() {
     super.initState();
     TransactionTrash.changes.addListener(_loadTransactions);
+    AccountService.changes.addListener(_loadAccounts);
     _loadCategories();
+    _loadAccounts();
     _loadTransactions();
   }
 
   @override
   void dispose() {
     TransactionTrash.changes.removeListener(_loadTransactions);
+    AccountService.changes.removeListener(_loadAccounts);
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -60,7 +70,19 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     } catch (_) {}
   }
 
+  Future<void> _loadAccounts() async {
+    final request = ++_accountsRequest;
+    try {
+      // Arşivlenmiş hesaplardaki eski işlemler de filtrelenip düzenlenebilir.
+      final accounts = await AccountService.list(includeArchived: true);
+      if (!mounted || request != _accountsRequest) return;
+      setState(() => _accounts = accounts);
+    } catch (_) {}
+  }
+
   Future<void> _loadTransactions() async {
+    if (!mounted) return;
+    final request = ++_transactionsRequest;
     setState(() => _isLoading = true);
 
     try {
@@ -69,12 +91,13 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       if (_selectedFilter > 0) {
         endpoint += '&type=$_selectedFilter';
       }
+      if (_accountFilter != null) endpoint += '&accountId=$_accountFilter';
       if (_searchCtrl.text.trim().isNotEmpty) {
         endpoint += '&search=${Uri.encodeQueryComponent(_searchCtrl.text.trim())}';
       }
 
       final response = await ApiService.authenticatedGet(endpoint);
-      if (!mounted) return;
+      if (!mounted || request != _transactionsRequest) return;
 
       if (response is Map && response.containsKey('items')) {
         setState(() {
@@ -86,7 +109,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && request == _transactionsRequest) setState(() => _isLoading = false);
     }
   }
 
@@ -193,6 +216,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       setState(() {
         _transactions.removeWhere((transaction) => transaction['id'] == id);
       });
+      AccountService.notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -221,6 +245,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     final descCtrl = TextEditingController(text: t['description'] ?? '');
     int selectedType = t['type'] ?? 2;
     int? selectedCategoryId = t['categoryId'];
+    int? selectedAccountId = t['accountId'];
     DateTime selectedDate = DateTime.tryParse(t['transactionDate'] ?? '') ?? DateTime.now();
 
     showAppBottomSheet(
@@ -345,6 +370,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now(),
                     );
+                    if (!mounted || !ctx.mounted) return;
                     if (picked != null) setSheetState(() => selectedDate = picked);
                   },
                   child: Container(
@@ -366,6 +392,13 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 ),
                 const SizedBox(height: 16),
 
+                if (_accounts.any((a) => !a.isArchived || a.id == selectedAccountId)) ...[
+                  KeyedSubtree(key: const Key('edit-transaction-account'), child: AccountPicker(
+                    accounts: _accounts.where((a) => !a.isArchived || a.id == selectedAccountId).toList(),
+                    value: selectedAccountId,
+                    onChanged: (value) => setSheetState(() => selectedAccountId = value))),
+                  const SizedBox(height: 16),
+                ],
                 Text('Kategori', style: TextStyle(color: tk.textSec, fontSize: 13)),
                 const SizedBox(height: 8),
                 Container(
@@ -432,7 +465,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         'transactionDate': selectedDate.toIso8601String(),
                         'type': selectedType,
                         'categoryId': selectedCategoryId,
+                        'accountId': selectedAccountId,
                       });
+
+                      if (!mounted || !ctx.mounted) return;
 
                       if (result is Map && result.containsKey('error')) {
                         if (mounted) {
@@ -451,6 +487,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       if (ctx.mounted) {
                         Navigator.pop(ctx);
                       }
+                      AccountService.notifyChanged();
                       _loadTransactions();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -504,6 +541,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               const SizedBox(height: 12),
 
               // Filtre çipleri
+              if (_accounts.isNotEmpty) ...[
+                KeyedSubtree(key: const Key('transaction-account-filter'), child: AccountPicker(
+                  accounts: _accounts, value: _accountFilter, emptyLabel: 'Tüm hesaplar',
+                  onChanged: (value) {
+                    setState(() { _accountFilter = value; _currentPage = 1; });
+                    _loadTransactions();
+                  })),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   _buildFilterChip(t, 'Tümü', 0),

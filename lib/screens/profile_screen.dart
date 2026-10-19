@@ -16,6 +16,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'login_screen.dart';
 import 'premium_screen.dart';
 import 'trash_screen.dart';
+import 'accounts_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -692,6 +693,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   : Icon(LucideIcons.chevronRight, color: t.textTert, size: 18),
                             ),
                           ),
+                          _settingsRow(t, LucideIcons.wallet, 'Hesaplarım',
+                            onTap: () => Navigator.push<bool>(context,
+                              MaterialPageRoute(builder: (_) => const AccountsScreen())),
+                            trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle',
                               onTap: _showEditProfileSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(t, LucideIcons.eyeOff, 'Tutarları gizle',

@@ -370,7 +370,7 @@ class ApiService{
     }
 
 
-    static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic> body,
+    static Future<dynamic> authenticatedPost(String endpoint,Map<String,dynamic>? body,
         {bool Function()? isCurrentSession}) async{
         try{
             final response = await _sendWithAuth((token) => _client.post(
@@ -379,7 +379,7 @@ class ApiService{
                     'Content-Type':'application/json',
                     'Authorization':'Bearer $token',
                 },
-                body:jsonEncode(body),
+                body: body == null ? null : jsonEncode(body),
             ).timeout(_timeout), isCurrentSession: isCurrentSession);
             return _decodeResponse(response);
         }catch(e){
