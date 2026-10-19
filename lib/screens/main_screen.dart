@@ -12,6 +12,7 @@ import 'profile_screen.dart';
 import 'investments_screen.dart';
 import 'pdf_import_screen.dart';
 import 'transfer_screen.dart';
+import 'recurring_payment_edit_screen.dart';
 import '../services/push_service.dart';
 import '../services/billing_service.dart';
 
@@ -274,6 +275,11 @@ class _MainScreenState extends State<MainScreen> {
                 MaterialPageRoute(builder: (_) => const TransferScreen()));
               if (!mounted) return;
               if (result == true) _refreshPages();
+            }),
+            const SizedBox(height: 12),
+            _buildAddOption(t, LucideIcons.calendar, 'Planlı ödeme ekle', 'Abonelik, kira, fatura', t.brand, onTap: () {
+              Navigator.pop(context);
+              Navigator.push<bool>(this.context, MaterialPageRoute(builder: (_) => const RecurringPaymentEditScreen()));
             }),
             const SizedBox(height: 12),
             _buildAddOption(t, LucideIcons.shapes, 'Kategoriler', 'Kategori ekle veya düzenle', t.brand, onTap: () {

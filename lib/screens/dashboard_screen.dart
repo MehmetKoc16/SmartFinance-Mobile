@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/accounts_overview.dart';
+import '../widgets/upcoming_payments_card.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/category_style.dart';
@@ -459,6 +460,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
 
                       const AccountsOverview(),
+                      const UpcomingPaymentsCard(),
                       if (_topSpendCats.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Container(

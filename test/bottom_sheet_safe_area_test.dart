@@ -31,6 +31,8 @@ void main() {
     await tester.pumpWidget(testApp(const ProfileScreen()));
     await settle(tester);
 
+    // NEDEN: Yeni Planlı ödemeler satırı profil ayarlarını aşağı taşıyabilir.
+    await tester.ensureVisible(find.text('Profil Düzenle'));
     await tester.tap(find.text('Profil Düzenle'));
     await settle(tester);
 

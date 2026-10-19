@@ -350,7 +350,7 @@ class ApiService{
         final message = (data is Map && data['message'] != null)
             ? data['message']
             : 'İşlem başarısız';
-        return {'error': message, if (response.statusCode == 404) 'statusCode': 404,
+        return {'error': message, if (response.statusCode == 404 || response.statusCode == 409) 'statusCode': response.statusCode,
             if (response.statusCode == 402) 'premiumRequired': true};
     }
 

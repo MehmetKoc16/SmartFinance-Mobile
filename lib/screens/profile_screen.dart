@@ -17,6 +17,7 @@ import 'login_screen.dart';
 import 'premium_screen.dart';
 import 'trash_screen.dart';
 import 'accounts_screen.dart';
+import 'recurring_payments_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -696,6 +697,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                           _settingsRow(t, LucideIcons.wallet, 'Hesaplarım',
                             onTap: () => Navigator.push<bool>(context,
                               MaterialPageRoute(builder: (_) => const AccountsScreen())),
+                            trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
+                          _settingsRow(t, LucideIcons.calendar, 'Planlı ödemeler',
+                            onTap: () => Navigator.push<void>(context,
+                              MaterialPageRoute(builder: (_) => const RecurringPaymentsScreen())),
                             trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           _settingsRow(t, LucideIcons.userCog, 'Profil Düzenle',
                               onTap: _showEditProfileSheet, trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),

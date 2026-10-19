@@ -137,8 +137,8 @@ class AccountsOverviewState extends State<AccountsOverview>
                                 const SizedBox(height: 8),
                                 Text(
                                   a.isCard
-                                      ? 'Borç ${formatTRY(a.debt!)}'
-                                      : formatTRY(a.balance!),
+                                      ? 'Borç ${formatTRY(a.debt ?? 0)}'
+                                      : formatTRY(a.balance ?? 0),
                                   style: TextStyle(
                                     color: t.text,
                                     fontWeight: FontWeight.w700,
@@ -146,7 +146,7 @@ class AccountsOverviewState extends State<AccountsOverview>
                                 ),
                                 if (a.isCard) ...[
                                   Text(
-                                    'Kalan limit ${formatTRY(a.availableLimit!)}',
+                                    'Kalan limit ${formatTRY(a.availableLimit ?? 0)}',
                                     style: TextStyle(color: t.textSec),
                                   ),
                                   if (_statements[a.id]?.oldestRemaining !=

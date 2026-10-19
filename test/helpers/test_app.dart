@@ -42,6 +42,7 @@ Future<void> setUpFakeApi({
   Map<String, dynamic> Function(Uri uri)? transactionFilter,
   List<Map<String, dynamic>> budgetStatus = const [],
   Future<http.Response?> Function(http.Request request)? accountApi,
+  Future<http.Response?> Function(http.Request request)? recurringApi,
 }) async {
   fakeApiRequests.clear();
   fakeApiBodies.clear();
@@ -60,6 +61,8 @@ Future<void> setUpFakeApi({
     }
     final accountResponse = await accountApi?.call(request);
     if (accountResponse != null) return accountResponse;
+    final recurringResponse = await recurringApi?.call(request);
+    if (recurringResponse != null) return recurringResponse;
     if (path.endsWith('/restore')) {
       return http.Response(jsonEncode(restoreStatus == 200 ? {'id': 71} : {}), restoreStatus,
           headers: {'content-type': 'application/json; charset=utf-8'});
@@ -94,6 +97,10 @@ Future<void> setUpFakeApi({
     } else if (path.contains('/transaction/category-summary/')) {
       body = categorySummary;
     } else if (path == '/api/account' && request.method == 'GET') {
+      body = [];
+    } else if (path == '/api/recurring/upcoming') {
+      body = {'items': [], 'expenseTotal': 0, 'incomeTotal': 0};
+    } else if (path == '/api/recurring') {
       body = [];
     } else if (path.endsWith('/category')) {
       body = categories;

@@ -63,6 +63,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   IconData _iconFor(int type) {
     switch (type) {
+      case 3: // RecurringDue
+        return LucideIcons.calendar;
       case 1: // BudgetExceeded
         return LucideIcons.circleAlert;
       default:
