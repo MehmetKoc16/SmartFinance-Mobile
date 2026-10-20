@@ -374,6 +374,10 @@ void main() {
       find.text('Düzenli ödemelerini ekle, günü gelince hatırlatalım'),
       findsNothing,
     );
+    // NEDEN: 3 sn sonraki tek yeniden deneme de başarısız olunca kart gizli kalmalı.
+    await tester.pump(const Duration(seconds: 3));
+    await settle(tester);
+    expect(find.text('Yaklaşan ödemeler'), findsNothing);
   });
   // NEDEN: Hem satır hem toplam gizlilik değişikliğine yeniden çizilerek uymalı.
   testWidgets('AnaSayfa_TutarlarGizliyken_YaklasanTutarGizli', (tester) async {

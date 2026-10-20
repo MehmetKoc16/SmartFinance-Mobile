@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -26,19 +27,21 @@ class UpcomingPaymentsCardState extends State<UpcomingPaymentsCard>
   @override
   void initState() {
     super.initState();
-    RecurringPaymentService.changes.addListener(reload);
-    TransactionTrash.changes.addListener(reload);
+    RecurringPaymentService.changes.addListener(_onChanged);
+    TransactionTrash.changes.addListener(_onChanged);
     reload();
   }
 
   @override
   void dispose() {
-    RecurringPaymentService.changes.removeListener(reload);
-    TransactionTrash.changes.removeListener(reload);
+    RecurringPaymentService.changes.removeListener(_onChanged);
+    TransactionTrash.changes.removeListener(_onChanged);
     super.dispose();
   }
 
-  Future<void> reload() async {
+  void _onChanged() => reload();
+
+  Future<void> reload({bool retry = true}) async {
     final request = ++_request;
     try {
       final result = await Future.wait<dynamic>([
@@ -50,8 +53,13 @@ class UpcomingPaymentsCardState extends State<UpcomingPaymentsCard>
         _upcoming = result[0] as Upcoming;
         _hasPlans = (result[1] as List<RecurringPayment>).isNotEmpty;
       });
-    } catch (_) {
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('UpcomingPaymentsCard yüklenemedi: $e\n$st');
       if (mounted && request == _request) setState(() => _upcoming = null);
+      if (retry && mounted && request == _request) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (mounted && request == _request) await reload(retry: false);
+      }
     }
   }
 

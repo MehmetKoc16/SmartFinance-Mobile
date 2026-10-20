@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -25,19 +26,21 @@ class AccountsOverviewState extends State<AccountsOverview>
   @override
   void initState() {
     super.initState();
-    AccountService.changes.addListener(reload);
-    TransactionTrash.changes.addListener(reload);
+    AccountService.changes.addListener(_onChanged);
+    TransactionTrash.changes.addListener(_onChanged);
     reload();
   }
 
   @override
   void dispose() {
-    AccountService.changes.removeListener(reload);
-    TransactionTrash.changes.removeListener(reload);
+    AccountService.changes.removeListener(_onChanged);
+    TransactionTrash.changes.removeListener(_onChanged);
     super.dispose();
   }
 
-  Future<void> reload() async {
+  void _onChanged() => reload();
+
+  Future<void> reload({bool retry = true}) async {
     final request = ++_request;
     try {
       final accounts = await AccountService.list();
@@ -52,8 +55,13 @@ class AccountsOverviewState extends State<AccountsOverview>
         _accounts = accounts;
         _statements = statements;
       });
-    } catch (_) {
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('AccountsOverview yüklenemedi: $e\n$st');
       if (mounted && request == _request) setState(() => _accounts = null);
+      if (retry && mounted && request == _request) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (mounted && request == _request) await reload(retry: false);
+      }
     }
   }
 

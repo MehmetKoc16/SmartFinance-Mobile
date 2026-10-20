@@ -403,4 +403,47 @@ void main() {
     expect(amountForInput(199.99), '199,99');
     expect(amountForInput(1500), '1500');
   });
+
+  // NEDEN: Emülatörde debug ilk açılışta geçici hata yüzünden bölüm gizli kalmamalı; 3 sn sonra bir kez otomatik yeniden denemeli.
+  testWidgets('AnaSayfa_HesaplarIlkIstekteHata_UcSaniyeSonraTekrarDener', (
+    tester,
+  ) async {
+    var accountCalls = 0;
+    await setUpFakeApi(
+      accountApi: (r) async {
+        if (r.url.path == '/api/account') {
+          accountCalls++;
+          if (accountCalls == 1) {
+            return http.Response('Internal Server Error', 500);
+          }
+          return _reply([
+            {
+              'id': 1,
+              'name': 'Deneme hesap',
+              'type': 2,
+              'openingBalance': 0,
+              'balance': 0,
+              'isArchived': false,
+              'sortOrder': 0,
+            },
+          ]);
+        }
+        return null;
+      },
+    );
+
+    await tester.pumpWidget(testApp(const Scaffold(body: AccountsOverview())));
+    await settle(tester);
+
+    expect(find.text('Deneme hesap'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 3));
+    await settle(tester);
+
+    expect(find.text('Deneme hesap'), findsOneWidget);
+    expect(
+      fakeApiRequests.where((u) => u.path == '/api/account').length,
+      2,
+    );
+  });
 }

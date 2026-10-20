@@ -533,6 +533,10 @@ void main() {
     await open(tester, const DashboardScreen());
     expect(find.text('Hesaplarım'), findsNothing);
     expect(find.textContaining('Kartlarını ve hesaplarını ekle'), findsNothing);
+    // NEDEN: 3 sn sonraki tek yeniden deneme de başarısız olunca bölüm gizli kalmalı.
+    await tester.pump(const Duration(seconds: 3));
+    await settle(tester);
+    expect(find.text('Hesaplarım'), findsNothing);
   });
   // NEDEN: Nakit/banka gövdesinde kart alanları backend tarafından reddedilir.
   testWidgets('HesapEkle_KartAlanlariYalnizKartta', (tester) async {
