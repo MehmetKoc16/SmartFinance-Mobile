@@ -58,6 +58,10 @@ String formatQuantity(num value) => _sifirlariKirp(
 String quantityForInput(num value) =>
     _sifirlariKirp(value.toStringAsFixed(8), '.');
 
+/// Para girişinde Türkçe ondalık ayracı kullanır; binlik ayıracı ve gizleme yoktur.
+/// Tam sayılarda gereksiz ondalık sıfırları eklemez.
+String amountForInput(num value) => quantityForInput(value).replaceAll('.', ',');
+
 /// Ondalık kısmın sonundaki gereksiz sıfırları atar; ondalık ayraç yalnız
 /// kalırsa onu da kaldırır. "10,00000000" -> "10", "2,50000000" -> "2,5".
 String _sifirlariKirp(String metin, String ayrac) {

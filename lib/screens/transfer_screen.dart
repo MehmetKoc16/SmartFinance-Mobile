@@ -28,7 +28,7 @@ class _TransferScreenState extends State<TransferScreen> {
     super.initState();
     _to = widget.toAccountId;
     _amount = TextEditingController(
-      text: widget.amount == null ? '' : quantityForInput(widget.amount!),
+      text: widget.amount == null ? '' : amountForInput(widget.amount!),
     );
     _load();
   }

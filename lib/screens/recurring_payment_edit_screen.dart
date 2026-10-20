@@ -37,7 +37,7 @@ class _RecurringPaymentEditScreenState
     final p = widget.payment;
     _name = TextEditingController(text: p?.name ?? '');
     _amount = TextEditingController(
-      text: p == null ? '' : quantityForInput(p.amount),
+      text: p == null ? '' : amountForInput(p.amount),
     );
     _type = p?.type ?? 2;
     _frequency = p?.frequency ?? 2;
@@ -200,6 +200,31 @@ class _RecurringPaymentEditScreenState
                             ),
                             const SizedBox(height: 12),
                             SegmentedButton<int>(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? t.brand
+                                          : t.inputBg,
+                                    ),
+                                foregroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? Colors.white
+                                          : t.textSec,
+                                    ),
+                                side: WidgetStatePropertyAll(
+                                  BorderSide(color: t.border),
+                                ),
+                                iconColor: WidgetStateProperty.resolveWith(
+                                  (states) =>
+                                      states.contains(WidgetState.selected)
+                                      ? Colors.white
+                                      : t.textSec,
+                                ),
+                              ),
                               segments: const [
                                 ButtonSegment(value: 2, label: Text('Gider')),
                                 ButtonSegment(value: 1, label: Text('Gelir')),

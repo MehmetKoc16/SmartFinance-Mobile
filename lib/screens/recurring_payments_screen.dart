@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
+import '../core/utils/turkish_suffix.dart';
 import '../models/account.dart';
 import '../models/recurring_payment.dart';
 import '../services/account_service.dart';
@@ -268,35 +269,33 @@ class _RecurringPaymentsScreenState extends State<RecurringPaymentsScreen>
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           onTap: _processing ? null : () => _actions(p),
-                          title: Text(
-                            p.name,
-                            style: TextStyle(
-                              color: p.type == 1 ? t.green : t.text,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          title: RecurringPaymentTitle(
+                            name: p.name,
+                            amount: p.amount,
+                            type: p.type,
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 _frequency(p),
-                                style: TextStyle(color: t.textSec),
+                                style: TextStyle(
+                                  color: t.textSec,
+                                  fontSize: 12,
+                                ),
                               ),
                               Text(
                                 DateFormat('dd.MM.yyyy').format(p.nextDueDate),
-                                style: TextStyle(color: t.textSec),
+                                style: TextStyle(
+                                  color: t.textSec,
+                                  fontSize: 12,
+                                ),
                               ),
                               RecurringStatusBadge(
                                 status: p.status,
                                 label: p.statusLabel,
                               ),
                             ],
-                          ),
-                          trailing: Text(
-                            formatTRY(p.amount),
-                            style: TextStyle(
-                              color: p.type == 1 ? t.green : t.text,
-                            ),
                           ),
                         ),
                       ),
@@ -309,7 +308,7 @@ class _RecurringPaymentsScreenState extends State<RecurringPaymentsScreen>
 
   String _frequency(RecurringPayment p) => switch (p.frequency) {
     1 => 'Her hafta ${DateFormat('EEEE', 'tr_TR').format(p.startDate)}',
-    2 => "Her ay ${p.anchorDay}'inde",
+    2 => 'Her ay ${gunEki(p.anchorDay)}',
     3 =>
       'Her yıl ${p.anchorDay} ${DateFormat('MMMM', 'tr_TR').format(p.startDate)}',
     _ => '',
@@ -335,7 +334,7 @@ class _PayFormState extends State<_PayForm> {
   void initState() {
     super.initState();
     _amount = TextEditingController(
-      text: quantityForInput(widget.payment.amount),
+      text: amountForInput(widget.payment.amount),
     );
     _accountId = widget.payment.accountId;
     _load();

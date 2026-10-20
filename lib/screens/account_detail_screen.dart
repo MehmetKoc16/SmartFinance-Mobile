@@ -26,6 +26,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen>
   Statements? _statements;
   List<_Movement> _movements = [];
   bool _loading = true, _busy = false;
+  bool _showAllStatements = false;
   String? _error;
   int _request = 0;
   @override
@@ -311,7 +312,22 @@ class _AccountDetailScreenState extends State<AccountDetailScreen>
                               ),
                               const SizedBox(height: 10),
                               _statement(_statements!.current),
-                              for (final s in _statements!.past) _statement(s),
+                              for (final s
+                                  in _showAllStatements
+                                      ? _statements!.past
+                                      : _statements!.past.take(3))
+                                _statement(s),
+                              if (_statements!.past.length > 3)
+                                TextButton(
+                                  onPressed: () => setState(() {
+                                    _showAllStatements = !_showAllStatements;
+                                  }),
+                                  child: Text(
+                                    _showAllStatements
+                                        ? 'Daha az ekstre göster'
+                                        : 'Tüm ekstreleri göster (${_statements!.past.length})',
+                                  ),
+                                ),
                             ],
                             const SizedBox(height: 16),
                             Text(
@@ -363,11 +379,12 @@ class _AccountDetailScreenState extends State<AccountDetailScreen>
 
   Widget _statement(Statement s) {
     final t = AppTokens.of(context);
-    final color = s.status == 'paid'
-        ? t.green
-        : s.status == 'overdue'
-        ? t.red
-        : t.brand;
+    final color = switch (s.status) {
+      'empty' => t.textTert,
+      'paid' => t.green,
+      'overdue' => t.red,
+      _ => t.brand,
+    };
     return AccountPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

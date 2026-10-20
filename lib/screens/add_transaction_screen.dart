@@ -199,11 +199,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
                             color: _selectedType == 1
-                                ? t.greenSoft
+                                ? t.brand
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                             border: _selectedType == 1
-                                ? Border.all(color: t.green, width: 1.5)
+                                ? Border.all(color: t.brand, width: 1.5)
                                 : null,
                           ),
                           child: Row(
@@ -212,8 +212,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               Icon(
                                 LucideIcons.arrowDownLeft,
                                 color: _selectedType == 1
-                                    ? t.green
-                                    : t.textTert,
+                                    ? Colors.white
+                                    : t.textSec,
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
@@ -221,8 +221,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 'Gelir',
                                 style: TextStyle(
                                   color: _selectedType == 1
-                                      ? t.green
-                                      : t.textTert,
+                                      ? Colors.white
+                                      : t.textSec,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -241,11 +241,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
                             color: _selectedType == 2
-                                ? t.redSoft
+                                ? t.brand
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                             border: _selectedType == 2
-                                ? Border.all(color: t.red, width: 1.5)
+                                ? Border.all(color: t.brand, width: 1.5)
                                 : null,
                           ),
                           child: Row(
@@ -253,7 +253,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             children: [
                               Icon(
                                 LucideIcons.arrowUpRight,
-                                color: _selectedType == 2 ? t.red : t.textTert,
+                                color: _selectedType == 2
+                                    ? Colors.white
+                                    : t.textSec,
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
@@ -261,8 +263,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 'Gider',
                                 style: TextStyle(
                                   color: _selectedType == 2
-                                      ? t.red
-                                      : t.textTert,
+                                      ? Colors.white
+                                      : t.textSec,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

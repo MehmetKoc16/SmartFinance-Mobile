@@ -12,7 +12,9 @@ class ApiService{
     // Canlı sunucu (Hetzner + Caddy, Let's Encrypt sertifikalı).
     // Yerel geliştirme için: Android emülatörde 'http://10.0.2.2:5059/api',
     // USB'yle bağlı fiziksel cihazda 'adb reverse tcp:5059 tcp:5059' + 'http://localhost:5059/api'.
-    static const String baseUrl = 'https://api.walletmark.com.tr/api';   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
+    // Yerel deneme: flutter run --dart-define=API_BASE_URL=http://localhost:5059/api (yalnız debug derlemede düz HTTP izinli).
+    static const String baseUrl = String.fromEnvironment('API_BASE_URL',
+        defaultValue: 'https://api.walletmark.com.tr/api');   //Tüm metodlar bu adresi kullanır, tek yönden yönetilir.
 
     // Oturum token'ları cihazda şifreli saklanır: Android'de Keystore destekli
     // EncryptedSharedPreferences, iOS'ta Keychain. Düz SharedPreferences'ta

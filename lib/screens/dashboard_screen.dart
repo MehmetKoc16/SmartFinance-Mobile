@@ -9,6 +9,8 @@ import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
 import '../services/api_service.dart';
 import '../services/amount_privacy.dart';
+import '../services/account_service.dart';
+import '../services/recurring_payment_service.dart';
 import '../services/transaction_trash.dart';
 import '../widgets/transaction_card.dart';
 import 'category_detail_screen.dart';
@@ -131,8 +133,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     return 'İyi akşamlar,';
   }
 
-  Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+  Future<void> _refreshDashboard() async {
+    // Kartları ekranda tut: dinleyiciye ek olarak initState isteği oluşmasın.
+    AccountService.notifyChanged();
+    RecurringPaymentService.notifyChanged();
+    await _loadDashboardData(showLoading: false);
+  }
+
+  Future<void> _loadDashboardData({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
 
     try {
       final prevMonth = _selectedMonth == 1 ? 12 : _selectedMonth - 1;
@@ -249,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: _isLoading
             ? Center(child: CircularProgressIndicator(color: t.brand))
             : RefreshIndicator(
-                onRefresh: _loadDashboardData,
+                onRefresh: _refreshDashboard,
                 color: t.brand,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),

@@ -88,7 +88,7 @@ class AccountsOverviewState extends State<AccountsOverview>
                     Expanded(
                       child: Text(
                         'Kartlarını ve hesaplarını ekle — bakiyeni ve kart borcunu takip et',
-                        style: TextStyle(color: t.text),
+                        style: TextStyle(color: t.text, fontSize: 14),
                       ),
                     ),
                   ],
@@ -98,82 +98,100 @@ class AccountsOverviewState extends State<AccountsOverview>
           else
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final a in accounts)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: InkWell(
-                        onTap: () => Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AccountDetailScreen(account: a),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final a in accounts)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: InkWell(
+                          onTap: () => Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AccountDetailScreen(account: a),
+                            ),
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          child: SizedBox(
+                            width: 222,
+                            child: AccountPanel(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    a.isCard
+                                        ? LucideIcons.creditCard
+                                        : LucideIcons.wallet,
+                                    color: t.brand,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    a.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: t.text,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    a.isCard
+                                        ? 'Borç ${formatTRY(a.debt ?? 0)}'
+                                        : formatTRY(a.balance ?? 0),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: t.text,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (a.isCard) ...[
+                                    Text(
+                                      'Kalan limit ${formatTRY(a.availableLimit ?? 0)}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(color: t.textSec),
+                                    ),
+                                    if (_statements[a.id]?.oldestRemaining !=
+                                        null)
+                                      Text(
+                                        'Son ödeme ${DateFormat('dd.MM.yyyy').format(_statements[a.id]!.oldestRemaining!.dueDate)}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: t.textSec,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        child: SizedBox(
-                          width: 222,
-                          child: AccountPanel(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  a.isCard
-                                      ? LucideIcons.creditCard
-                                      : LucideIcons.wallet,
-                                  color: t.brand,
-                                  size: 20,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  a.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: t.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  a.isCard
-                                      ? 'Borç ${formatTRY(a.debt ?? 0)}'
-                                      : formatTRY(a.balance ?? 0),
-                                  style: TextStyle(
-                                    color: t.text,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if (a.isCard) ...[
-                                  Text(
-                                    'Kalan limit ${formatTRY(a.availableLimit ?? 0)}',
-                                    style: TextStyle(color: t.textSec),
-                                  ),
-                                  if (_statements[a.id]?.oldestRemaining !=
-                                      null)
-                                    Text(
-                                      'Son ödeme ${DateFormat('dd.MM.yyyy').format(_statements[a.id]!.oldestRemaining!.dueDate)}',
-                                      style: TextStyle(
-                                        color: t.textSec,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                ],
-                              ],
+                      ),
+                    InkWell(
+                      onTap: _add,
+                      borderRadius: BorderRadius.circular(16),
+                      child: const SizedBox(
+                        width: 160,
+                        child: AccountPanel(
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: Text(
+                              '+ Hesap ekle',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ),
                       ),
                     ),
-                  InkWell(
-                    onTap: _add,
-                    borderRadius: BorderRadius.circular(16),
-                    child: const SizedBox(
-                      width: 160,
-                      child: AccountPanel(child: Text('+ Hesap ekle')),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],

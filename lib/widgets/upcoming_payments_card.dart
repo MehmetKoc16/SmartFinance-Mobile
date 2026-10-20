@@ -65,8 +65,9 @@ class UpcomingPaymentsCardState extends State<UpcomingPaymentsCard>
         child: ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(LucideIcons.calendar, color: t.brand),
-          title: const Text(
+          title: Text(
             'Düzenli ödemelerini ekle, günü gelince hatırlatalım',
+            style: TextStyle(color: t.text, fontSize: 14),
           ),
           onTap: () => Navigator.push<bool>(
             context,
@@ -126,24 +127,24 @@ class UpcomingPaymentsCardState extends State<UpcomingPaymentsCard>
           for (final item in items.take(3))
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(
-                item.name,
-                style: TextStyle(color: item.type == 1 ? t.green : t.text),
+              title: RecurringPaymentTitle(
+                name: item.name,
+                amount: item.amount,
+                type: item.type,
               ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(DateFormat('dd.MM.yyyy').format(item.dueDate)),
+                  Text(
+                    DateFormat('dd.MM.yyyy').format(item.dueDate),
+                    style: TextStyle(color: t.textSec, fontSize: 12),
+                  ),
                   if (item.status == 'overdue' || item.status == 'today')
                     RecurringStatusBadge(
                       status: item.status,
                       label: item.status == 'overdue' ? 'Gecikti' : 'Bugün',
                     ),
                 ],
-              ),
-              trailing: Text(
-                formatTRY(item.amount),
-                style: TextStyle(color: item.type == 1 ? t.green : t.text),
               ),
               onTap: () => Navigator.push<void>(
                 context,

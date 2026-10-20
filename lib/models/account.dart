@@ -93,6 +93,7 @@ class Statement {
         'unpaid': 'Ödenmedi',
         'overdue': 'Gecikti',
         'open': 'Açık dönem',
+        'empty': 'Harcama yok',
       }[status] ??
       status;
   factory Statement.fromJson(Map<String, dynamic> json) => Statement(

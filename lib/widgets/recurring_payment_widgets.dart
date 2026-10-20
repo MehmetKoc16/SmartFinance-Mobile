@@ -1,5 +1,50 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_tokens.dart';
+import '../core/utils/formatters.dart';
+
+/// İşlem kartıyla aynı ad/tutar hiyerarşisi; tutar adın satırında kalır.
+class RecurringPaymentTitle extends StatelessWidget {
+  const RecurringPaymentTitle({
+    super.key,
+    required this.name,
+    required this.amount,
+    required this.type,
+  });
+  final String name;
+  final double amount;
+  final int type;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    final color = type == 1 ? t.green : t.text;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          formatTRY(amount),
+          style: TextStyle(
+            color: color,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class RecurringStatusBadge extends StatelessWidget {
   const RecurringStatusBadge({
