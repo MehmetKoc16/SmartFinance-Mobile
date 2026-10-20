@@ -245,7 +245,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     final descCtrl = TextEditingController(text: t['description'] ?? '');
     int selectedType = t['type'] ?? 2;
     int? selectedCategoryId = t['categoryId'];
-    int? selectedAccountId = t['accountId'];
+    final int? initialAccountId = t['accountId'];
+    int? selectedAccountId = initialAccountId;
     DateTime selectedDate = DateTime.tryParse(t['transactionDate'] ?? '') ?? DateTime.now();
 
     showAppBottomSheet(
@@ -466,6 +467,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         'type': selectedType,
                         'categoryId': selectedCategoryId,
                         'accountId': selectedAccountId,
+                        // Null tek başına bağı kaldırmaz; açık kaldırma isteği gerekir.
+                        if (selectedAccountId == null && initialAccountId != null)
+                          'clearAccount': true,
                       });
 
                       if (!mounted || !ctx.mounted) return;

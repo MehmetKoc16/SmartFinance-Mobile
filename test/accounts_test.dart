@@ -138,6 +138,29 @@ Future<void> choose(WidgetTester tester, String key, String label) async {
   await tap(tester, find.text(label).last);
 }
 
+Future<void> openTransactionEdit(WidgetTester tester, {int? accountId}) async {
+  await setUpFakeApi(
+    categories: [
+      {'id': 7, 'name': 'Deneme kategori', 'type': 2},
+    ],
+    transactions: [
+      {
+        'id': 11,
+        'amount': 17,
+        'description': 'Deneme işlem',
+        'type': 2,
+        'categoryId': 7,
+        'accountId': accountId,
+        'transactionDate': '2026-10-01T12:00:00',
+      },
+    ],
+    accountApi: (r) async =>
+        r.url.path == '/api/account' ? response([accountJson(2, 2)]) : null,
+  );
+  await open(tester, const TransactionsScreen());
+  await tap(tester, find.byType(TransactionCard).first);
+}
+
 void main() {
   setUp(() {
     AmountPrivacy.gizli.value = false;
@@ -147,6 +170,35 @@ void main() {
     await BillingService.resetForTest();
     tearDownFakeApi();
     AmountPrivacy.gizli.value = false;
+  });
+
+  // NEDEN: Hesap değişmese de PUT mevcut bağı açıkça taşımalı.
+  testWidgets('IslemDuzenle_HesapDegismedi_AccountIdKorunurGonderilir', (tester) async {
+    await openTransactionEdit(tester, accountId: 2);
+    await tap(tester, find.text('Güncelle'));
+    final body = fakeApiBodies['/api/transaction/11'] as Map;
+    expect(body['accountId'], 2);
+    expect(body.containsKey('clearAccount'), isFalse);
+  });
+
+  // NEDEN: Yeni sunucu sözleşmesinde null tek başına hesap bağını kaldırmaz.
+  testWidgets('IslemDuzenle_HesapKaldirildi_ClearAccountTrue', (tester) async {
+    await openTransactionEdit(tester, accountId: 2);
+    await choose(tester, 'edit-transaction-account', 'Hesap seçilmedi');
+    await tap(tester, find.text('Güncelle'));
+    final body = fakeApiBodies['/api/transaction/11'] as Map;
+    expect(body.containsKey('accountId'), isTrue);
+    expect(body['accountId'], isNull);
+    expect(body['clearAccount'], isTrue);
+  });
+
+  // NEDEN: Baştan hesapsız işlem, kullanıcı hesap kaldırmış gibi işaretlenmemeli.
+  testWidgets('IslemDuzenle_BastaHesapYok_ClearAccountGonderilmez', (tester) async {
+    await openTransactionEdit(tester);
+    await tap(tester, find.text('Güncelle'));
+    final body = fakeApiBodies['/api/transaction/11'] as Map;
+    expect(body['accountId'], isNull);
+    expect(body.containsKey('clearAccount'), isFalse);
   });
 
   // NEDEN: Uç yolları, sayısal türler, gövdesiz yanıtlar ve UTC sözleşmesi birlikte korunmalı.

@@ -229,6 +229,7 @@ void main() {
     await setup();
     await open(tester, const RecurringPaymentsScreen());
     await tap(tester, find.text('Deneme Dijital Abonelik 1'));
+    final openedAfter = DateTime.now();
     await tap(tester, find.text('Ödendi olarak işaretle'));
     expect(find.text('Deneme hesap'), findsOneWidget);
     expect(find.text('Deneme arşiv'), findsNothing);
@@ -238,7 +239,11 @@ void main() {
     expect(b['dueDate'], '2026-10-19');
     expect(b['amount'], 123.45);
     expect(b['accountId'], 4);
-    expect(DateTime.parse(b['transactionDate'] as String).isUtc, isTrue);
+    // NEDEN: Tarih seçilmezse işlem ekle ekranı gibi bugünün yerel saati gönderilmeli.
+    final date = DateTime.parse(b['transactionDate'] as String);
+    expect(date.isUtc, isFalse);
+    expect(date.isBefore(openedAfter), isFalse);
+    expect(date.isAfter(DateTime.now()), isFalse);
     expect(AccountService.changes.value, greaterThan(before));
     expect(find.text('İşlem eklendi'), findsOneWidget);
   });
@@ -422,8 +427,48 @@ void main() {
     expect(fakeApiBodies.containsKey('/api/recurring/1'), isFalse);
   });
 
-  // NEDEN: Tüm tipli uçlar sözleşme alanlarını korumalı; DateOnly ve işlem UTC'si ayrı yazılmalı.
-  test('PlanliServis_TumUclar_SozlesmeVeUtc', () async {
+  // NEDEN: TSİ 00–03 arası ödeme UTC'ye çevrilirse önceki güne kayar.
+  test('PlanliOde_TarihZsizDuvarSaati', () async {
+    await setup();
+    final date = DateTime(2026, 10, 20, 1, 24, 35);
+    await RecurringPaymentService.pay(
+      1,
+      dueDate: DateTime(2026, 10, 20),
+      transactionDate: date,
+    );
+    final body = fakeApiBodies['/api/recurring/1/pay'] as Map;
+    final sent = body['transactionDate'] as String;
+    expect(sent.endsWith('Z'), isFalse);
+    expect(sent, '2026-10-20T01:24:35.000');
+    expect(sent, date.toIso8601String());
+  });
+
+  // NEDEN: Ekranda boş görünen silinmiş kategori, kayıtta eski Id ile diriltilmemeli.
+  testWidgets('PlanliDuzenle_SilinmisKategori_GovdedeCategoryIdNull', (tester) async {
+    await setup();
+    final deletedCategoryPlan = {...plan(), 'categoryId': 99};
+    await open(
+      tester,
+      RecurringPaymentEditScreen(
+        payment: RecurringPayment.fromJson(deletedCategoryPlan),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final category = tester.widget<DropdownButtonFormField<int>>(
+      find.descendant(
+        of: find.byKey(const Key('recurring-category')),
+        matching: find.byType(DropdownButtonFormField<int>),
+      ),
+    );
+    expect(category.initialValue, isNull);
+    await tap(tester, find.text('Kaydet'));
+    final body = fakeApiBodies['/api/recurring/1'] as Map;
+    expect(body.containsKey('categoryId'), isTrue);
+    expect(body['categoryId'], isNull);
+  });
+
+  // NEDEN: Tüm tipli uçlar DateOnly alanlarını ve işlemin yerel duvar saatini korumalı.
+  test('PlanliServis_TumUclar_SozlesmeVeDuvarSaati', () async {
     await setup(
       upcoming: {
         'items': [upcomingItem(1, 'today', '2026-10-19')],
@@ -478,7 +523,7 @@ void main() {
     expect(b['dueDate'], '2026-10-19');
     expect(
       b['transactionDate'],
-      DateTime(2026, 10, 19, 13, 24).toUtc().toIso8601String(),
+      DateTime(2026, 10, 19, 13, 24).toIso8601String(),
     );
     expect(b['amount'], 127.45);
     expect(b['description'], 'Deneme açıklama');

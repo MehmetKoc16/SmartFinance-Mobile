@@ -78,6 +78,10 @@ class _RecurringPaymentEditScreenState
         _categories = categories is List
             ? categories
             : (categories['items'] as List);
+        // Silinmiş kategori yalnız görünümden değil, kaydedilecek değerden de çıkarılmalı.
+        if (!_categories.any((c) => c['id'] == _categoryId)) {
+          _categoryId = null;
+        }
         _loading = false;
       });
     } catch (e) {

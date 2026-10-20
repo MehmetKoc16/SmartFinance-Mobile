@@ -112,7 +112,8 @@ class RecurringPaymentService {
           'dueDate': recurringDate(dueDate),
           'amount': amount,
           'accountId': accountId,
-          'transactionDate': transactionDate?.toUtc().toIso8601String(),
+          // İşlem tarihleri TSİ duvar saatidir; UTC dönüşümü günü kaydırabilir.
+          'transactionDate': transactionDate?.toIso8601String(),
           'description': description,
         }),
       ),
