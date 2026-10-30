@@ -8,6 +8,7 @@ import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:smartfinance_mobile/core/theme/app_theme.dart';
 import 'package:smartfinance_mobile/screens/premium_screen.dart';
 import 'package:smartfinance_mobile/screens/profile_screen.dart';
+import 'package:smartfinance_mobile/services/amount_privacy.dart';
 import 'package:smartfinance_mobile/services/billing_service.dart';
 import 'package:smartfinance_mobile/services/links.dart';
 
@@ -449,6 +450,51 @@ void main() {
     await settle(tester);
     await tester.scrollUntilVisible(find.text('Premium'), 200);
     expect(find.text('Aktif'), findsOneWidget);
+  });
+
+  /// NEDEN: 29.10 denetimi: "Tutarları gizle" açıkken fiyat '₺•••' görünüyordu;
+  /// kullanıcı ödeme öncesi ücreti her zaman görebilmeli.
+  premiumTest('Tutarlar gizliyken plan fiyatı gerçek haliyle görünür', (tester) async {
+    AmountPrivacy.gizli.value = true;
+    addTearDown(() => AmountPrivacy.gizli.value = false);
+    await _open(tester);
+    expect(find.text('7 gün ücretsiz, sonra ₺99,00/ay'), findsOneWidget);
+    expect(find.text('7 gün ücretsiz, sonra ₺799,00/yıl'), findsOneWidget);
+    expect(find.textContaining('₺•••'), findsNothing);
+  });
+
+  String renewalText(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const Key('premium-renewal'))).data!;
+
+  /// NEDEN: 29.10 denetimi: yenileme metni denemesi olan planda deneme
+  /// bitişini, seçilen dönemle birlikte doğru söylemeli; iptal yolu korunmalı.
+  premiumTest('Denemeli planda yenileme metni deneme bitişini ve dönemi söyler', (tester) async {
+    await _open(tester);
+    expect(renewalText(tester),
+        "Abonelik, ücretsiz deneme bitince her yıl otomatik yenilenir. İstediğiniz zaman Google Play'den iptal edebilirsiniz.");
+    await tester.tap(find.byKey(const Key('plan-premium_monthly')));
+    await settle(tester);
+    expect(renewalText(tester),
+        "Abonelik, ücretsiz deneme bitince her ay otomatik yenilenir. İstediğiniz zaman Google Play'den iptal edebilirsiniz.");
+    expect(find.text('Abonelikleri yönet'), findsOneWidget);
+  });
+
+  /// NEDEN: 29.10 denetimi: denemesi olmayan planda "deneme bitince" demek
+  /// var olmayan bir deneme vaat ediyordu.
+  premiumTest('Denemesiz planda yenileme metni deneme anmaz', (tester) async {
+    store.products = [
+      ..._products(BillingService.premiumMonthly, '₺99,00', 99000000, trial: false),
+      ..._products(BillingService.premiumYearly, '₺799,00', 799000000, trial: false),
+    ];
+    await _open(tester);
+    expect(renewalText(tester),
+        "Abonelik her yıl otomatik yenilenir. İstediğiniz zaman Google Play'den iptal edebilirsiniz.");
+    await tester.tap(find.byKey(const Key('plan-premium_monthly')));
+    await settle(tester);
+    expect(renewalText(tester),
+        "Abonelik her ay otomatik yenilenir. İstediğiniz zaman Google Play'den iptal edebilirsiniz.");
+    expect(find.textContaining('deneme'), findsNothing);
+    expect(find.text('Abonelikleri yönet'), findsOneWidget);
   });
 
   /// NEDEN: Açık ve koyu temada küçük ekran da taşma veya çizim hatası üretmemeli.
