@@ -18,6 +18,7 @@ import 'premium_screen.dart';
 import 'trash_screen.dart';
 import 'accounts_screen.dart';
 import 'recurring_payments_screen.dart';
+import 'notification_preferences_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -758,6 +759,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                           ),
+                          // Yukarıdaki anahtar cihaz izni/kaydıdır; türe göre
+                          // seçim (KVKK) hesap düzeyinde, sunucuda tutulur.
+                          _settingsRow(t, LucideIcons.slidersHorizontal, 'Bildirim tercihleri',
+                            onTap: () => Navigator.push<void>(context,
+                              MaterialPageRoute(builder: (_) => const NotificationPreferencesScreen())),
+                            trailing: Icon(LucideIcons.chevronRight, color: t.textTert, size: 18)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.divider))),
