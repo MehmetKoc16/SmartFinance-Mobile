@@ -197,6 +197,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                               return;
                             }
 
+                            final email = emailCtrl.text.trim();
+                            // E-posta hesabın kimliğidir: açık bırakılan
+                            // telefondan değiştirilememesi için mevcut şifre
+                            // istenir. Yalnız ad değişiyorsa sorulmaz.
+                            String? currentPassword;
+                            if (email.toLowerCase() != _userEmail.trim().toLowerCase()) {
+                              currentPassword = await _askCurrentPassword();
+                              if (currentPassword == null || !mounted || !ctx.mounted) return;
+                            }
+
                             setSheetState(() {
                               isSubmitting = true;
                               hata = null;
@@ -204,7 +214,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                             final result = await ApiService.authenticatedPut('/auth/profile', {
                               'fullName': nameCtrl.text.trim(),
-                              'email': emailCtrl.text.trim(),
+                              'email': email,
+                              if (currentPassword != null) 'currentPassword': currentPassword,
                             });
 
                             // ctx.mounted: sayfa (this) ayakta olsa bile
@@ -243,6 +254,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
+
+  /// E-posta değişikliği öncesi mevcut şifreyi ister; iptalde null döner.
+  Future<String?> _askCurrentPassword() => showDialog<String>(
+        context: context,
+        builder: (_) => const _CurrentPasswordDialog(),
+      );
 
   // ─── ŞİFRE DEĞİŞTİRME ───────────────────────────────────
 
@@ -897,6 +914,76 @@ class _ProfileScreenState extends State<ProfileScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Şifre alanının denetleyicisini diyalog kapanış animasyonu bitene kadar
+/// yaşatmak için ayrı widget: dispose, widget ağaçtan çıkınca çalışır.
+class _CurrentPasswordDialog extends StatefulWidget {
+  const _CurrentPasswordDialog();
+
+  @override
+  State<_CurrentPasswordDialog> createState() => _CurrentPasswordDialogState();
+}
+
+class _CurrentPasswordDialogState extends State<_CurrentPasswordDialog> {
+  final _ctrl = TextEditingController();
+  String? _hata;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    if (_ctrl.text.isEmpty) {
+      setState(() => _hata = 'Mevcut şifrenizi giriniz!');
+      return;
+    }
+    Navigator.pop(context, _ctrl.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTokens.of(context);
+    return AlertDialog(
+      backgroundColor: t.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Şifrenizi doğrulayın', style: TextStyle(color: t.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('E-posta adresinizi değiştirmek için mevcut şifrenizi girin.',
+              style: TextStyle(color: t.textSec)),
+          const SizedBox(height: 14),
+          TextField(
+            key: const Key('profil-mevcut-sifre'),
+            controller: _ctrl,
+            obscureText: true,
+            autofocus: true,
+            style: TextStyle(color: t.text),
+            onSubmitted: (_) => _confirm(),
+            decoration: InputDecoration(
+              hintText: 'Mevcut şifre',
+              errorText: _hata,
+              prefixIcon: Icon(LucideIcons.lock, color: t.textTert, size: 18),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('İptal', style: TextStyle(color: t.textTert)),
+        ),
+        ElevatedButton(
+          onPressed: _confirm,
+          child: const Text('Onayla'),
+        ),
+      ],
     );
   }
 }

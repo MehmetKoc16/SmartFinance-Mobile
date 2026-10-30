@@ -72,6 +72,15 @@ class _PremiumScreenState extends State<PremiumScreen>
     return percent > 0 ? '%$percent tasarruf' : 'En avantajlı';
   }
 
+  /// Deneme vaadi yalnız seçili teklifte gerçekten ücretsiz dönem varsa yazılır.
+  static String _renewalText(PremiumPlan? plan) {
+    if (plan == null) return 'Abonelik, seçtiğiniz plana göre otomatik yenilenir.';
+    final period = plan.yearly ? 'her yıl' : 'her ay';
+    return plan.trialLabel != null
+        ? 'Abonelik, ücretsiz deneme bitince $period otomatik yenilenir.'
+        : 'Abonelik $period otomatik yenilenir.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
@@ -156,8 +165,9 @@ class _PremiumScreenState extends State<PremiumScreen>
                     ],
                     const SizedBox(height: 24),
                     Text(
-                      'Abonelik, deneme bitince seçtiğiniz plana göre otomatik yenilenir. '
+                      '${_renewalText(_billing.isPremium ? null : plan)} '
                       "İstediğiniz zaman Google Play'den iptal edebilirsiniz.",
+                      key: const Key('premium-renewal'),
                       style: TextStyle(color: t.textSec, fontSize: 12, height: 1.5),
                     ),
                     TextButton(onPressed: () => baglantiAc(context, gizlilikUrl),
@@ -229,7 +239,9 @@ class _PremiumScreenState extends State<PremiumScreen>
                 ),
               ],
               const SizedBox(height: 8),
-              Text(AmountPrivacy.gizli.value ? '₺•••/${plan.yearly ? 'yıl' : 'ay'}' : plan.description,
+              // Satın alınacak planın fiyatı "Tutarları gizle" ayarından
+              // bağımsızdır: kullanıcı ödeme öncesi ücreti görebilmeli.
+              Text(plan.description,
                   style: TextStyle(color: t.text, fontSize: 14, height: 1.4)),
             ]),
           ),
