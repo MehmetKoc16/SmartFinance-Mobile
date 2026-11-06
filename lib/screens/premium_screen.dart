@@ -23,6 +23,9 @@ class _PremiumScreenState extends State<PremiumScreen>
   final _billing = BillingService();
   StreamSubscription<void>? _subscription;
   bool _loading = true;
+  bool _earlyPerformanceConsent = false;
+  bool _savingConsent = false;
+  String? _consentError;
   String _selected = BillingService.premiumYearly;
 
   @override
@@ -36,7 +39,10 @@ class _PremiumScreenState extends State<PremiumScreen>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _consentError = null;
+    });
     await _billing.load();
     if (!mounted) return;
     setState(() {
@@ -49,7 +55,7 @@ class _PremiumScreenState extends State<PremiumScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_billing.busy) {
+    if (state == AppLifecycleState.resumed && !_billing.busy && !_savingConsent) {
       _load();
     }
   }
@@ -81,11 +87,79 @@ class _PremiumScreenState extends State<PremiumScreen>
         : 'Abonelik $period otomatik yenilenir.';
   }
 
+  Future<void> _buy(PremiumPlan plan) async {
+    if (!_earlyPerformanceConsent || _savingConsent ||
+        _billing.busy || _billing.pending) {
+      return;
+    }
+    setState(() {
+      _savingConsent = true;
+      _consentError = null;
+    });
+    try {
+      final result = await ApiService.authenticatedPost('/subscription/consent', {
+        'productId': plan.product.id,
+        'textVersion': onBilgilendirmeSurumu,
+      });
+      if (!mounted) return;
+      if (result is! Map || result.containsKey('error')) {
+        setState(() => _consentError = 'Onayınız kaydedilemedi. Lütfen tekrar deneyin.');
+        return;
+      }
+      await _billing.buy(plan);
+    } finally {
+      if (mounted) setState(() => _savingConsent = false);
+    }
+  }
+
+  Widget _preInformation(AppTokens t, PremiumPlan plan, bool locked) {
+    return Container(
+      key: const Key('premium-on-bilgi'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: t.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: DefaultTextStyle(
+          style: TextStyle(color: t.textSec, fontSize: 12, height: 1.5),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Sağlayıcı: $saglayiciAdi · $destekEposta'),
+            Text('${plan.priceLabel} (vergiler dahil).'),
+            if (plan.trialLabel != null)
+              Text('İlk ${plan.trialLabel}; deneme bitmeden iptal etmezseniz ücretlendirilirsiniz.'),
+            const Text('Abonelik her dönem sonunda otomatik yenilenir; istediğiniz zaman Google Play > Abonelikler\'den iptal edebilirsiniz, erişiminiz dönem sonuna kadar sürer.'),
+            TextButton(
+              onPressed: () => baglantiAc(context, kosullarUrl),
+              child: const Text('Kullanım ve Abonelik Koşulları (sağlayıcı adresi, cayma hakkı)'),
+            ),
+            CheckboxListTile(
+              key: const Key('premium-erken-ifa'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _earlyPerformanceConsent,
+              onChanged: locked ? null : (value) => setState(() {
+                _earlyPerformanceConsent = value ?? false;
+                _consentError = null;
+              }),
+              title: const Text(
+                'Ön bilgilendirmeyi ve Kullanım ve Abonelik Koşulları\'nı okudum. Premium hizmetinin 14 günlük cayma süresi dolmadan hemen başlamasını istiyorum; onayımla ifasına başlanan hizmette cayma hakkının kullanılamayacağı konusunda bilgilendirildim.',
+                style: TextStyle(fontSize: 12, height: 1.5),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppTokens.of(context);
     final plan = _billing.plans[_selected];
-    final locked = _billing.busy || _billing.pending;
+    final locked = _billing.busy || _billing.pending || _savingConsent;
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
@@ -123,14 +197,16 @@ class _PremiumScreenState extends State<PremiumScreen>
                         for (final id in [BillingService.premiumMonthly, BillingService.premiumYearly])
                           if (_billing.plans[id] != null) _planCard(t, _billing.plans[id]!, locked),
                         const SizedBox(height: 8),
+                        if (plan != null) _preInformation(t, plan, locked),
+                        const SizedBox(height: 12),
                         ElevatedButton(
                           key: const Key('premium-buy'),
-                          onPressed: locked || plan == null ||
+                          onPressed: locked || !_earlyPerformanceConsent || plan == null ||
                                   _billing.status?['accountToken'] is! String ||
                                   (_billing.status?['accountToken'] as String).isEmpty ||
                                   _billing.canRetryVerification
                               ? null
-                              : () => _billing.buy(plan),
+                              : () => _buy(plan),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: t.brandSoft,
                             foregroundColor: t.brand,
@@ -138,12 +214,16 @@ class _PremiumScreenState extends State<PremiumScreen>
                             disabledForegroundColor: t.textSec,
                             minimumSize: const Size.fromHeight(50),
                           ),
-                          child: _billing.busy
+                          child: _billing.busy || _savingConsent
                               ? SizedBox(width: 22, height: 22,
                                   child: CircularProgressIndicator(strokeWidth: 2, color: t.brand))
                               : const Text("Premium'a geç"),
                         ),
                       ],
+                    ],
+                    if (_consentError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_consentError!, style: TextStyle(color: t.red)),
                     ],
                     if (_billing.pending) ...[
                       const SizedBox(height: 12),
@@ -153,7 +233,7 @@ class _PremiumScreenState extends State<PremiumScreen>
                       const SizedBox(height: 12),
                       Text(_billing.error!, style: TextStyle(color: t.red)),
                       TextButton(
-                        onPressed: _billing.busy ? null : () async {
+                        onPressed: _billing.busy || _savingConsent ? null : () async {
                           if (_billing.canRetryVerification) {
                             await _billing.retryVerification();
                           } else {
@@ -171,12 +251,14 @@ class _PremiumScreenState extends State<PremiumScreen>
                       style: TextStyle(color: t.textSec, fontSize: 12, height: 1.5),
                     ),
                     TextButton(onPressed: () => baglantiAc(context, gizlilikUrl),
-                      child: const Text('Gizlilik Politikası')),
+                      child: const Text('Gizlilik ve Aydınlatma Metni')),
+                    TextButton(onPressed: () => baglantiAc(context, kosullarUrl),
+                      child: const Text('Kullanım ve Abonelik Koşulları')),
                     if (!_billing.isPremium)
                       TextButton(onPressed: () => baglantiAc(context, abonelikYonetimUrl),
                       child: const Text('Abonelikleri yönet')),
                     TextButton(
-                      onPressed: _billing.busy ? null : _billing.restore,
+                      onPressed: _billing.busy || _savingConsent ? null : _billing.restore,
                       child: const Text('Satın alımları geri yükle'),
                     ),
                   ],

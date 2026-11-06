@@ -52,7 +52,7 @@ void main() {
   }.entries) {
     linksTest('${entry.key} gizlilik baglantisi dogru URL acar', (tester) async {
       await openScreen(tester, entry.value);
-      final link = find.text('Gizlilik Politikası');
+      final link = find.text(entry.key == 'Profil' ? 'Gizlilik Politikası' : 'Gizlilik ve Aydınlatma Metni');
       await tester.ensureVisible(link);
       await tester.tap(link);
       await settle(tester);
@@ -80,7 +80,7 @@ void main() {
     await openScreen(tester, const PremiumScreen());
     expect(find.text('Aboneliği yönet'), findsOneWidget);
     expect(find.text('Abonelikleri yönet'), findsNothing);
-    expect(find.text('Gizlilik Politikası'), findsOneWidget);
+    expect(find.text('Gizlilik ve Aydınlatma Metni'), findsOneWidget);
     await tester.tap(find.text('Aboneliği yönet'));
     await settle(tester);
     expect(opened.single.toString(), abonelikYonetimUrl);

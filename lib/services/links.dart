@@ -3,6 +3,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'app_lock.dart';
 
 const gizlilikUrl = 'https://walletmark.com.tr/gizlilik';
+const kosullarUrl = 'https://walletmark.com.tr/kosullar';
+const saglayiciAdi = 'Mehmet Koç (Wallet Mark)';
+const destekEposta = 'destek@walletmark.com.tr';
+const onBilgilendirmeSurumu = '2026-11-06';
 const abonelikYonetimUrl = 'https://play.google.com/store/account/subscriptions?package=com.walletmark.app';
 
 Future<bool> _launch(Uri uri) => launchUrl(uri, mode: LaunchMode.externalApplication);

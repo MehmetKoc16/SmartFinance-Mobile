@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:smartfinance_mobile/core/theme/app_theme.dart';
 import 'package:smartfinance_mobile/screens/premium_screen.dart';
 import 'package:smartfinance_mobile/screens/profile_screen.dart';
+import 'package:smartfinance_mobile/screens/register_screen.dart';
 import 'package:smartfinance_mobile/services/amount_privacy.dart';
 import 'package:smartfinance_mobile/services/billing_service.dart';
 import 'package:smartfinance_mobile/services/links.dart';
@@ -28,6 +31,7 @@ class FakeStoreGateway implements StoreGateway {
   int restoreCalls = 0;
   List<PurchaseDetails> restored = [];
   bool buyResult = true;
+  VoidCallback? onBuy;
 
   @override
   Future<bool> isAvailable() async => available;
@@ -38,6 +42,7 @@ class FakeStoreGateway implements StoreGateway {
   }
   @override
   Future<bool> buy(ProductDetails product, {String? accountToken}) async {
+    onBuy?.call();
     bought.add(product);
     accountTokens.add(accountToken);
     return buyResult;
@@ -53,7 +58,8 @@ class FakeStoreGateway implements StoreGateway {
   Future<void> completePurchase(PurchaseDetails purchase) async => completed.add(purchase);
 }
 
-List<GooglePlayProductDetails> _products(String id, String price, int micros, {bool trial = true}) {
+List<GooglePlayProductDetails> _products(String id, String price, int micros,
+    {bool trial = true, String trialPeriod = 'P7D'}) {
   final recurring = PricingPhaseWrapper(
     billingCycleCount: 0,
     billingPeriod: id == BillingService.premiumMonthly ? 'P1M' : 'P1Y',
@@ -77,8 +83,8 @@ List<GooglePlayProductDetails> _products(String id, String price, int micros, {b
         SubscriptionOfferDetailsWrapper(
           basePlanId: 'base', offerId: 'trial', offerTags: const [], offerIdToken: '$id-trial',
           pricingPhases: [
-            const PricingPhaseWrapper(
-              billingCycleCount: 1, billingPeriod: 'P7D', formattedPrice: 'Ücretsiz',
+            PricingPhaseWrapper(
+              billingCycleCount: 1, billingPeriod: trialPeriod, formattedPrice: 'Ücretsiz',
               priceAmountMicros: 0, priceCurrencyCode: 'TRY', recurrenceMode: RecurrenceMode.finiteRecurring,
             ),
             recurring,
@@ -115,7 +121,16 @@ Future<void> _open(WidgetTester tester, {ThemeData? theme}) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(testApp(const PremiumScreen(), theme: theme));
+  await pumpUntilDone(tester, BillingService().load());
   await settle(tester);
+}
+
+Future<void> _acceptConsent(WidgetTester tester) async {
+  final checkbox = find.byKey(const Key('premium-erken-ifa'));
+  await tester.ensureVisible(checkbox);
+  await tester.tap(checkbox);
+  await tester.pump();
+  await tester.ensureVisible(find.byKey(const Key('premium-buy')));
 }
 
 void main() {
@@ -140,9 +155,167 @@ void main() {
   setUp(() async {
     store = FakeStoreGateway();
     BillingService.gateway = store;
-    await setUpFakeApi(subscriptionStatus: _status(), subscriptionVerifyResult: _status(premium: true));
+    await setUpFakeApi(subscriptionStatus: _status(), subscriptionVerifyResult: _status(premium: true),
+      accountApi: (request) async => request.url.path.endsWith('/subscription/consent')
+          ? http.Response('', 204) : null);
   });
   tearDown(tearDownFakeApi);
+
+  for (final screen in ['Premium', 'Kayit']) {
+    // NEDEN: Sözleşme hem satın alma hem kayıt öncesinde erişilebilir olmalı.
+    premiumTest('KosullarBaglantisi_DogruAdresiAcar_$screen', (tester) async {
+      final opened = <Uri>[];
+      linkLauncher = (uri) async { opened.add(uri); return true; };
+      addTearDown(resetLinkLauncherForTest);
+      if (screen == 'Premium') {
+        await _open(tester);
+      } else {
+        await tester.pumpWidget(testApp(const RegisterScreen()));
+        await settle(tester);
+      }
+      final link = find.text(screen == 'Premium'
+          ? 'Kullanım ve Abonelik Koşulları' : 'Kullanım Koşulları');
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await settle(tester);
+      expect(opened.single.toString(), kosullarUrl);
+      if (screen == 'Premium') {
+        final preInformationLink = find.text('Kullanım ve Abonelik Koşulları (sağlayıcı adresi, cayma hakkı)');
+        await tester.ensureVisible(preInformationLink);
+        await tester.tap(preInformationLink);
+        await settle(tester);
+        expect(opened.map((uri) => uri.toString()), [kosullarUrl, kosullarUrl]);
+      }
+    });
+  }
+
+  // NEDEN: Aydınlatma kabul edilmez; kabul beyanı yalnız koşullara bağlanmalı.
+  premiumTest('KayitEkrani_AydinlatmaKabulEdilmez', (tester) async {
+    await tester.pumpWidget(testApp(const RegisterScreen()));
+    await settle(tester);
+    expect(find.textContaining('okuduğunuzu kabul edersiniz'), findsNothing);
+    expect(find.text('Kullanım Koşulları'), findsOneWidget);
+    expect(find.text("'nı kabul etmiş olursunuz. Kişisel verilerinizin nasıl işlendiği "), findsOneWidget);
+    expect(find.text('Gizlilik ve Aydınlatma Metni'), findsOneWidget);
+    expect(find.text("'nde açıklanmıştır."), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
+  });
+
+  // NEDEN: Erken ifa onayı kullanıcı tarafından açıkça verilmeli.
+  premiumTest('OnayKutusuIsaretsiz_SatinAlDugmesiKapali', (tester) async {
+    await _open(tester);
+    expect(tester.widget<CheckboxListTile>(find.byKey(const Key('premium-erken-ifa'))).value, isFalse);
+    expect(tester.widget<ElevatedButton>(find.byKey(const Key('premium-buy'))).onPressed, isNull);
+    expect(fakeApiRequests.where((u) => u.path.endsWith('/subscription/consent')), isEmpty);
+  });
+
+  // NEDEN: Onay verildiğinde satın alma açılmalı, kaldırıldığında kapanmalı.
+  premiumTest('OnayKutusuIsaretlenince_SatinAlAcilir', (tester) async {
+    await _open(tester);
+    await _acceptConsent(tester);
+    expect(tester.widget<ElevatedButton>(find.byKey(const Key('premium-buy'))).onPressed, isNotNull);
+    await _acceptConsent(tester);
+    expect(tester.widget<ElevatedButton>(find.byKey(const Key('premium-buy'))).onPressed, isNull);
+  });
+
+  // NEDEN: Sunucuda ispat kaydı tamamlanmadan Play satın alması başlayamaz;
+  // bekleyen kayıt sırasında çift dokunma da ikinci kayıt oluşturmamalı.
+  premiumTest('SatinAlma_OnceOnayKaydedilir_SonraBuyCagrilir', (tester) async {
+    final calls = <String>[];
+    final response = Completer<http.Response>();
+    store.onBuy = () => calls.add('buy');
+    await pumpUntilDone(tester, setUpFakeApi(subscriptionStatus: _status(), accountApi: (request) async {
+      if (!request.url.path.endsWith('/subscription/consent')) return null;
+      calls.add('consent');
+      expect(request.method, 'POST');
+      expect(request.headers['Authorization'], 'Bearer test');
+      expect(jsonDecode(request.body), {
+        'productId': BillingService.premiumYearly,
+        'textVersion': onBilgilendirmeSurumu,
+      });
+      return response.future;
+    }));
+    await _open(tester);
+    await _acceptConsent(tester);
+    final button = find.byKey(const Key('premium-buy'));
+    await tester.tap(button);
+    await tester.tap(button);
+    await settle(tester);
+    expect(calls, ['consent']);
+    expect(tester.widget<ElevatedButton>(button).onPressed, isNull);
+    response.complete(http.Response('', 204));
+    await settle(tester);
+    expect(calls, ['consent', 'buy']);
+  });
+
+  for (final failure in ['500', '400', 'ağ']) {
+    // NEDEN: Sunucu veya bağlantı hatasında kanıt kaydı yoktur; ödeme engellenmeli.
+    premiumTest('OnayKaydiBasarisiz_BuyCagrilmaz_HataGosterilir_$failure', (tester) async {
+      var fail = true;
+      await pumpUntilDone(tester, setUpFakeApi(subscriptionStatus: _status(), accountApi: (request) async {
+        if (!request.url.path.endsWith('/subscription/consent')) return null;
+        if (!fail) return http.Response('', 204);
+        if (failure == 'ağ') throw http.ClientException('sahte bağlantı hatası');
+        return http.Response('{}', int.parse(failure));
+      }));
+      await _open(tester);
+      await _acceptConsent(tester);
+      await tester.tap(find.byKey(const Key('premium-buy')));
+      await settle(tester);
+      expect(store.bought, isEmpty);
+      expect(find.text('Onayınız kaydedilemedi. Lütfen tekrar deneyin.'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(find.byKey(const Key('premium-buy'))).onPressed, isNotNull);
+      fail = false;
+      await tester.ensureVisible(find.byKey(const Key('premium-buy')));
+      await tester.tap(find.byKey(const Key('premium-buy')));
+      await settle(tester);
+      expect(store.bought, hasLength(1));
+      expect(find.text('Onayınız kaydedilemedi. Lütfen tekrar deneyin.'), findsNothing);
+    });
+  }
+
+  premiumTest('OnayHatasi_KutuDegisinceTemizlenir', (tester) async {
+    await pumpUntilDone(tester, setUpFakeApi(subscriptionStatus: _status(), accountApi: (request) async {
+      if (!request.url.path.endsWith('/subscription/consent')) return null;
+      return http.Response('{}', 500);
+    }));
+    await _open(tester);
+    await _acceptConsent(tester);
+    await tester.tap(find.byKey(const Key('premium-buy')));
+    await settle(tester);
+    expect(find.textContaining('Onayınız kaydedilemedi'), findsOneWidget);
+    final checkbox = find.byKey(const Key('premium-erken-ifa'));
+    await tester.ensureVisible(checkbox);
+    await tester.tap(checkbox);
+    await settle(tester);
+    expect(find.textContaining('Onayınız kaydedilemedi'), findsNothing);
+  });
+
+  // NEDEN: Ödeme öncesi sağlayıcı, toplam ücret ve yenileme/iptal bilgisi görünmeli.
+  premiumTest('OnBilgilendirme_SaglayiciFiyatYenilemeGosterir', (tester) async {
+    await _open(tester);
+    final box = find.byKey(const Key('premium-on-bilgi'));
+    expect(find.descendant(of: box, matching: find.text('Sağlayıcı: $saglayiciAdi · $destekEposta')), findsOneWidget);
+    expect(find.descendant(of: box, matching: find.text('₺799,00/yıl (vergiler dahil).')), findsOneWidget);
+    expect(find.text('İlk 7 gün ücretsiz; deneme bitmeden iptal etmezseniz ücretlendirilirsiniz.'), findsOneWidget);
+    expect(find.text("Abonelik her dönem sonunda otomatik yenilenir; istediğiniz zaman Google Play > Abonelikler'den iptal edebilirsiniz, erişiminiz dönem sonuna kadar sürer."), findsOneWidget);
+    await tester.tap(find.byKey(const Key('plan-premium_monthly')));
+    await tester.pump();
+    expect(find.text('₺99,00/ay (vergiler dahil).'), findsOneWidget);
+  });
+
+  // NEDEN: Deneme süresi sabit yazılırsa mağaza teklifi değişince yanlış bilgi verilir.
+  premiumTest('OnBilgilendirme_DenemeSuresiniSeciliTekliftenAlir', (tester) async {
+    store.products = [
+      ..._products(BillingService.premiumMonthly, '₺99,00', 99000000, trial: false),
+      ..._products(BillingService.premiumYearly, '₺799,00', 799000000, trialPeriod: 'P2W'),
+    ];
+    await _open(tester);
+    expect(find.text('İlk 14 gün ücretsiz; deneme bitmeden iptal etmezseniz ücretlendirilirsiniz.'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('plan-premium_monthly')));
+    await tester.pump();
+    expect(find.textContaining('deneme bitmeden'), findsNothing);
+  });
 
   premiumTest('EkranKapaliykenGelenSatinAlma_DogrulanirVeTamamlanir', (tester) async {
     await pumpUntilDone(tester, BillingService().startAppWide());
@@ -255,6 +428,7 @@ void main() {
   /// NEDEN: Görünen deneme teklifi satın alınmalı ve Play satın alımı sunucu hesabına bağlamalı.
   premiumTest('Satın alma seçili ürün ve sunucunun accountToken değeriyle başlar', (tester) async {
     await _open(tester);
+    await _acceptConsent(tester);
     await tester.tap(find.byKey(const Key('premium-buy')));
     await settle(tester);
     expect(store.bought.single.id, BillingService.premiumYearly);
@@ -330,11 +504,13 @@ void main() {
   /// NEDEN: Bekleyen ödemeden henüz doğrulanabilir bir satın alma veya premium yetkisi doğmaz.
   premiumTest('Pending ödeme bekleniyor gösterir ve verify çağırmaz', (tester) async {
     await _open(tester);
+    await _acceptConsent(tester);
     store.events.add([_purchase(PurchaseStatus.pending)]);
     await settle(tester);
     expect(find.text('Ödeme bekleniyor'), findsOneWidget);
     expect(_verifyRequests(), isEmpty);
     expect(store.completed, isEmpty);
+    await tester.ensureVisible(find.byKey(const Key('premium-buy')));
     await tester.tap(find.byKey(const Key('premium-buy')));
     expect(store.bought, isEmpty);
     store.events.add([_purchase(PurchaseStatus.purchased)]);
@@ -379,6 +555,7 @@ void main() {
   /// NEDEN: Play penceresi açılırken çift dokunuş iki satın alma isteği oluşturmamalı.
   premiumTest('Satın alma sürerken ikinci basış ikinci buy çağırmaz', (tester) async {
     await _open(tester);
+    await _acceptConsent(tester);
     final button = find.byKey(const Key('premium-buy'));
     await tester.tap(button);
     await tester.tap(button);
@@ -391,7 +568,9 @@ void main() {
   /// NEDEN: Play iptali hata değildir; kullanıcı daha sonra tekrar satın alabilmeli.
   premiumTest('İptal sessizdir ve satın alma butonu tekrar açılır', (tester) async {
     await _open(tester);
+    await _acceptConsent(tester);
     await tester.tap(find.byKey(const Key('premium-buy')));
+    await settle(tester);
     store.events.add([_purchase(PurchaseStatus.canceled)]);
     await settle(tester);
     expect(_verifyRequests(), isEmpty);
