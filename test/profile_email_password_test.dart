@@ -42,6 +42,10 @@ void main() {
             : respond({'message': profileError}, profileStatus);
       }
       if (path.endsWith('/category')) return respond([]);
+      // Geçerli (sıfır) özet: boş yanıt artık "veriler yüklenemedi" hatası sayılır.
+      if (path.contains('/transaction/summary/')) {
+        return respond({'totalIncome': 0, 'totalExpense': 0, 'transactionCount': 0});
+      }
       return respond({});
     });
   });

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../screens/biometric_lock_screen.dart';
 import 'api_service.dart';
@@ -23,6 +24,14 @@ class AppLock extends StatefulWidget {
   final Future<bool> Function() hasSession;
   final Future<bool> Function() available;
   final Future<bool> Function() authenticate;
+  static Completer<void>? _unlockWaiter;
+  static bool get isLocked => _unlockWaiter != null;
+  static Future<void> whenUnlocked() => _unlockWaiter?.future ?? Future<void>.value();
+  static void _releaseLock() {
+    final waiter = _unlockWaiter;
+    _unlockWaiter = null;
+    waiter?.complete();
+  }
   static int _suppression = 0;
   static int _suppressionRevision = 0;
 
@@ -60,6 +69,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppLock._releaseLock();
     super.dispose();
   }
 
@@ -93,6 +103,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
   }
 
   Future<void> _check() async {
+    AppLock._unlockWaiter ??= Completer<void>();
     setState(() => _checking = true);
     final suppressionRevision = AppLock._suppressionRevision;
     try {
@@ -133,6 +144,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
       });
     } finally {
       _checking = false;
+      if (!_locked) AppLock._releaseLock();
       if (mounted) setState(() {});
     }
   }
@@ -144,6 +156,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
     if (route != null && route.isActive) _navigator?.removeRoute(route);
     _backgroundAt = null;
     setState(() => _locked = false);
+    AppLock._releaseLock();
   }
 
   @override

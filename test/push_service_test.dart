@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:smartfinance_mobile/services/app_lock.dart';
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -227,4 +231,57 @@ void main() {
     await settle(tester);
     expect(find.byType(NotificationsScreen), findsOneWidget);
   });
+
+  pushTest('ZorunluCikis_PushDinleyicisiniDurdurur', (tester) async {
+    // NEDEN: Merkezi token temizliği tüm push dinleyicilerini kapatmalı.
+    await pumpUntilDone(tester, PushService.start());
+    expect(fcm.onPlanda.hasListener, isTrue);
+    // Unregister da 401 döner: çıkış yeniden refresh/çıkış döngüsüne girmemeli.
+    ApiService.httpClientForTest = MockClient((_) async => http.Response('{}', 401));
+    await pumpUntilDone(tester, ApiService.authenticatedGet('/test'));
+    expect(await pumpUntilDone(tester, ApiService.getToken()), isNull);
+    expect(fcm.onPlanda.hasListener, isFalse);
+    expect(fcm.acilan.hasListener, isFalse);
+    expect(fcm.yenilenen.hasListener, isFalse);
+    await pumpUntilDone(tester, PushService.stop());
+    expect(fcm.silinme, 1);
+  });
+
+  pushTest('OturumKapaliyken_OnPlanBildirimiGosterilmez', (tester) async {
+    // NEDEN: Henüz dinleyici kapanmamış olsa bile token yokken içerik sızmamalı.
+    await tester.pumpWidget(uygulama(const Scaffold()));
+    await pumpUntilDone(tester, PushService.start());
+    FlutterSecureStorage.setMockInitialValues({});
+    fcm.onPlanda.add(_butceBildirimi);
+    await settle(tester);
+    expect(find.text(_butceBildirimi.title!), findsNothing);
+  });
+
+  pushTest('KilitliykenBildirimeDokunma_KilitAcilincaAcilir', (tester) async {
+    // NEDEN: Bildirim rotası biyometrik kilidin üstüne çıkmamalı.
+    var now = DateTime(2026, 11, 13);
+    final auth = Completer<bool>();
+    await tester.pumpWidget(uygulama(AppLock(
+      now: () => now,
+      hasSession: () async => true,
+      available: () async => true,
+      authenticate: () => auth.future,
+      child: const Scaffold(body: Text('Ana ekran')),
+    )));
+    await pumpUntilDone(tester, PushService.start());
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    now = now.add(const Duration(seconds: 61));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await settle(tester);
+    expect(AppLock.isLocked, isTrue);
+    fcm.acilan.add(_butceBildirimi);
+    await settle(tester);
+    expect(find.byType(NotificationsScreen, skipOffstage: false), findsNothing);
+    auth.complete(true);
+    await pumpUntilDone(tester, auth.future);
+    await settle(tester);
+    expect(AppLock.isLocked, isFalse);
+    expect(find.byType(NotificationsScreen), findsOneWidget);
+  });
+
 }

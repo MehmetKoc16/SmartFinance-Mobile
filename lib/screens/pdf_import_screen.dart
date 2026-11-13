@@ -104,6 +104,20 @@ class _PdfImportScreenState extends State<PdfImportScreen>
       _ilerleme = null;
     });
 
+    bool tooLarge = false;
+    try {
+      tooLarge = await File(_selectedFilePath!).length() > ApiService.maxUploadBytes;
+    } catch (_) {
+      // Okuma hatasını mevcut yükleme hata yolu gösterir.
+    }
+    if (!mounted) return;
+    if (tooLarge) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dosya çok büyük (en fazla 15 MB).')),
+      );
+      return;
+    }
     bool? hasText;
     if (_selectedFilePath!.toLowerCase().endsWith('.pdf')) {
       try {

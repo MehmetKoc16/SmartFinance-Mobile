@@ -124,12 +124,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         'accountId': _accountId,
       });
 
+      if (!(response is Map && response.containsKey('error'))) {
+        AccountService.notifyChanged();
+      }
       if (!mounted) return;
 
-      if (response.containsKey('error')) {
+      if (response is Map && response.containsKey('error')) {
         _showError(response['error']);
       } else {
-        AccountService.notifyChanged();
         if (mounted) {
           final t = AppTokens.of(context);
           ScaffoldMessenger.of(context).showSnackBar(

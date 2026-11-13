@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -153,4 +154,48 @@ void main() {
     await ApiService.authenticatedGet('/ikinci');
     expect(refreshCalls.length, 1);
   });
+
+  test('CikistanSonraBitenYenileme_TokenlariGeriYazmaz', () async {
+    // NEDEN: Çıkıştan sonra gelen refresh yanıtı eski oturumu diriltmemeli.
+    await ApiService.saveToken('A');
+    await ApiService.saveRefreshToken('RA');
+    final started = Completer<void>();
+    final refresh = Completer<http.Response>();
+    ApiService.httpClientForTest = MockClient((r) async {
+      if (r.url.path.endsWith('/auth/refresh')) {
+        started.complete();
+        return refresh.future;
+      }
+      return http.Response('{}', 401);
+    });
+    final pending = ApiService.authenticatedGet('/test');
+    await started.future;
+    await ApiService.removeToken();
+    refresh.complete(http.Response(jsonEncode({'token': 'old', 'refreshToken': 'oldR'}), 200));
+    await pending;
+    expect(await ApiService.getToken(), isNull);
+    expect(await ApiService.getRefreshToken(), isNull);
+  });
+
+  test('OturumDegisince_401SonrasiYenidenGonderimYapilmaz', () async {
+    // NEDEN: A isteği, geciken 401 nedeniyle B hesabıyla yeniden gönderilmemeli.
+    await ApiService.saveToken('A');
+    final started = Completer<void>();
+    final response = Completer<http.Response>();
+    final authorizations = <String?>[];
+    ApiService.httpClientForTest = MockClient((r) {
+      authorizations.add(r.headers['Authorization']);
+      started.complete();
+      return response.future;
+    });
+    final pending = ApiService.authenticatedGet('/test');
+    await started.future;
+    await ApiService.removeToken();
+    await ApiService.saveToken('B');
+    response.complete(http.Response('{}', 401));
+    expect(await pending, contains('error'));
+    expect(authorizations, ['Bearer A']);
+    expect(await ApiService.getToken(), 'B');
+  });
+
 }

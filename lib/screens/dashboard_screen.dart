@@ -7,6 +7,7 @@ import '../core/constants/category_style.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/utils/formatters.dart';
+import '../core/utils/review_helpers.dart';
 import '../services/api_service.dart';
 import '../services/amount_privacy.dart';
 import '../services/account_service.dart';
@@ -47,6 +48,9 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with AmountPrivacyListener {
+  bool _summaryFailed = false;
+  bool _hasSummary = false;
+  int _dashboardRequest = 0;
   double _totalIncome = 0;
   double _totalExpense = 0;
   double? _balanceChangePct;
@@ -118,12 +122,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return _selectedYear == now.year && _selectedMonth == now.month;
   }
 
-  String get _initials {
-    final parts = _userName.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
-    return 'SF';
-  }
+  String get _initials => nameInitials(_userName);
 
   String get _greeting {
     final hour = DateTime.now().hour;
@@ -141,29 +140,35 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _loadDashboardData({bool showLoading = true}) async {
+    if (!mounted) return;
+    final request = ++_dashboardRequest;
+    final year = _selectedYear, month = _selectedMonth;
+    bool current() => mounted && request == _dashboardRequest &&
+        year == _selectedYear && month == _selectedMonth;
     if (showLoading) setState(() => _isLoading = true);
 
     try {
-      final prevMonth = _selectedMonth == 1 ? 12 : _selectedMonth - 1;
-      final prevYear = _selectedMonth == 1 ? _selectedYear - 1 : _selectedYear;
+      final prevMonth = month == 1 ? 12 : month - 1;
+      final prevYear = month == 1 ? year - 1 : year;
 
       final results = await Future.wait([
         ApiService.authenticatedGet('/auth/me'),
         ApiService.authenticatedGet('/category'),
-        ApiService.authenticatedGet('/transaction/summary/$_selectedYear/$_selectedMonth'),
+        ApiService.authenticatedGet('/transaction/summary/$year/$month'),
         ApiService.authenticatedGet('/transaction/summary/$prevYear/$prevMonth'),
         ApiService.authenticatedGet('/transaction/filter?page=1&pageSize=5'),
         ApiService.authenticatedGet(
-          '/transaction/category-summary/$_selectedYear/$_selectedMonth?type=2',
+          '/transaction/category-summary/$year/$month?type=2',
         ),
         ApiService.authenticatedGet('/notification/unread-count'),
       ]);
 
+      if (!current()) return;
       final me = results[0];
       final categories = results[1];
-      final summary = results[2] as Map;
-      final prevSummary = results[3] as Map;
-      final recent = results[4] as Map;
+      final summary = results[2];
+      final prevSummary = results[3];
+      final recent = results[4];
       final monthExpenses = results[5];
       final unreadCount = results[6] is Map ? (results[6] as Map)['count'] ?? 0 : 0;
 
@@ -171,14 +176,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
       }
 
-      final income = (summary['totalIncome'] ?? 0).toDouble();
-      final expense = (summary['totalExpense'] ?? 0).toDouble();
+      final summaryOk = validSummary(summary);
+      final income = summaryOk ? (summary['totalIncome'] as num).toDouble() : _totalIncome;
+      final expense = summaryOk ? (summary['totalExpense'] as num).toDouble() : _totalExpense;
       final net = income - expense;
 
-      final prevIncome = (prevSummary['totalIncome'] ?? 0).toDouble();
-      final prevExpense = (prevSummary['totalExpense'] ?? 0).toDouble();
+      final prevOk = validSummary(prevSummary);
+      final prevIncome = prevOk ? (prevSummary['totalIncome'] as num).toDouble() : 0.0;
+      final prevExpense = prevOk ? (prevSummary['totalExpense'] as num).toDouble() : 0.0;
       final prevNet = prevIncome - prevExpense;
-      final changePct = prevNet == 0 ? null : ((net - prevNet) / prevNet.abs()) * 100;
+      final changePct = !summaryOk || !prevOk || prevNet == 0 ? null : ((net - prevNet) / prevNet.abs()) * 100;
 
       final rows = monthExpenses is List ? monthExpenses : const [];
       final maxSpend = rows.isEmpty ? 1.0 : (rows.first['total'] as num).toDouble();
@@ -193,21 +200,37 @@ class _DashboardScreenState extends State<DashboardScreen>
         );
       }).toList();
 
-      if (mounted) {
+      if (current()) {
         setState(() {
+          _summaryFailed = !summaryOk;
+          if (summaryOk) _hasSummary = true;
           _userName = me is Map ? (me['fullName'] ?? '') : '';
           _totalIncome = income;
           _totalExpense = expense;
           _balanceChangePct = changePct;
-          _recentTransactions = recent['items'] ?? [];
+          _recentTransactions = recent is Map && recent['items'] is List ? recent['items'] : [];
           _topSpendCats = topSpendCats;
           _unreadNotifications = unreadCount is int ? unreadCount : 0;
           _isLoading = false;
         });
+        if (!summaryOk) _showSummaryError();
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (current()) {
+        setState(() {
+          _isLoading = false;
+          _summaryFailed = true;
+          _balanceChangePct = null;
+        });
+        _showSummaryError();
+      }
     }
+  }
+
+  void _showSummaryError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Veriler yüklenemedi. Tekrar deneyin.')),
+    );
   }
 
   String _getCategoryName(dynamic transaction) {
@@ -404,7 +427,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
                             const SizedBox(height: 8),
                             Text(
-                              formatTRY(_totalIncome - _totalExpense),
+                              _summaryFailed && !_hasSummary ? '—' : formatTRY(_totalIncome - _totalExpense),
                               style: jakarta(
                                   fontSize: 34, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: -0.5),
                             ),
@@ -657,7 +680,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(height: 10),
           Text(
-            formatTRY(amount),
+            _summaryFailed && !_hasSummary ? '—' : formatTRY(amount),
             style: TextStyle(color: t.text, fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),

@@ -472,6 +472,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                           'clearAccount': true,
                       });
 
+                      if (!(result is Map && result.containsKey('error'))) {
+                        AccountService.notifyChanged();
+                      }
                       if (!mounted || !ctx.mounted) return;
 
                       if (result is Map && result.containsKey('error')) {
@@ -491,7 +494,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       if (ctx.mounted) {
                         Navigator.pop(ctx);
                       }
-                      AccountService.notifyChanged();
                       _loadTransactions();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(

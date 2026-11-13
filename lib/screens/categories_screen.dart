@@ -30,6 +30,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
@@ -230,7 +231,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
                         }
                         return;
                       }
-                      _loadData();
+                      if (mounted) _loadData();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -257,7 +258,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
     final t = AppTokens.of(context);
     final budget = _budgetByCategory[cat['id']];
     final limitController = TextEditingController(
-      text: budget != null ? (budget['monthlyLimit'] as num).toStringAsFixed(0) : '',
+      text: budget != null ? amountForInput(budget['monthlyLimit'] as num) : '',
     );
 
     showAppBottomSheet(
@@ -314,7 +315,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
                     }
                     return;
                   }
-                  _loadData();
+                  if (mounted) _loadData();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -351,7 +352,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
                       }
                       return;
                     }
-                    _loadData();
+                    if (mounted) _loadData();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -415,7 +416,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
                 }
                 return;
               }
-              _loadData();
+              if (mounted) _loadData();
               if (mounted) {
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(

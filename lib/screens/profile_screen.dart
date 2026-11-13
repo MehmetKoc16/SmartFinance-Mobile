@@ -7,6 +7,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_tokens.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/utils/formatters.dart';
+import '../core/utils/review_helpers.dart';
 import '../services/api_service.dart';
 import '../services/amount_privacy.dart';
 import '../services/links.dart';
@@ -30,6 +31,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with AmountPrivacyListener {
   bool _isLoading = true;
+  bool _summaryFailed = false;
+  bool _hasSummary = false;
   double _totalIncome = 0;
   double _totalExpense = 0;
   int _transactionCount = 0;
@@ -40,12 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String _versionLabel = 'Wallet Mark';
 
-  String get _initials {
-    final parts = _userName.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
-    return 'SF';
-  }
+  String get _initials => nameInitials(_userName);
 
   @override
   void initState() {
@@ -81,19 +79,34 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       final categories = await ApiService.authenticatedGet('/category');
 
+      final summaryOk = validSummary(summary) && summary['transactionCount'] is int;
       if (mounted) {
         setState(() {
-          _totalIncome = (summary['totalIncome'] ?? 0).toDouble();
-          _totalExpense = (summary['totalExpense'] ?? 0).toDouble();
-          _transactionCount = summary['transactionCount'] ?? 0;
+          _summaryFailed = !summaryOk;
+          if (summaryOk) {
+            _hasSummary = true;
+            _totalIncome = (summary['totalIncome'] as num).toDouble();
+            _totalExpense = (summary['totalExpense'] as num).toDouble();
+            _transactionCount = summary['transactionCount'];
+          }
           _categoryCount = categories is List ? categories.length : 0;
           _notifOn = prefs.getBool(PushService.notificationsEnabledKey) ?? true;
           _isLoading = false;
         });
+        if (!summaryOk) _showSummaryError();
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() { _isLoading = false; _summaryFailed = true; });
+        _showSummaryError();
+      }
     }
+  }
+
+  void _showSummaryError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Veriler yüklenemedi. Tekrar deneyin.')),
+    );
   }
 
   Future<void> _toggleNotif() async {
@@ -679,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                     Row(
                       children: [
-                        Expanded(child: _statCard(t, 'İşlem Sayısı', '$_transactionCount', t.text)),
+                        Expanded(child: _statCard(t, 'İşlem Sayısı', _summaryFailed && !_hasSummary ? '—' : '$_transactionCount', t.text)),
                         const SizedBox(width: 10),
                         Expanded(child: _statCard(t, 'Kategori Sayısı', '$_categoryCount', t.text)),
                       ],
@@ -687,9 +700,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: _statCard(t, 'Aylık Gelir', formatTRY(_totalIncome, decimals: false), t.green)),
+                        Expanded(child: _statCard(t, 'Aylık Gelir', _summaryFailed && !_hasSummary ? '—' : formatTRY(_totalIncome, decimals: false), t.green)),
                         const SizedBox(width: 10),
-                        Expanded(child: _statCard(t, 'Aylık Gider', formatTRY(_totalExpense, decimals: false), t.red)),
+                        Expanded(child: _statCard(t, 'Aylık Gider', _summaryFailed && !_hasSummary ? '—' : formatTRY(_totalExpense, decimals: false), t.red)),
                       ],
                     ),
 

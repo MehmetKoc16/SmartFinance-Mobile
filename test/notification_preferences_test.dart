@@ -176,4 +176,28 @@ void main() {
     expect(find.byType(NotificationPreferencesScreen), findsOneWidget);
     expect(getIstekleri, hasLength(1));
   });
+
+  testWidgets('BildirimTercihi_EskiYanitDigerAnahtariEzmez', (tester) async {
+    // NEDEN: Geç gelen ilk yanıt tamamlanmış ikinci seçimi geri almamalı.
+    final oldResponse = Completer<http.Response>();
+    ApiService.httpClientForTest = MockClient((r) async {
+      if (r.method == 'GET') return respond(sunucuTercihleri);
+      final body = jsonDecode(r.body) as Map;
+      if (body.containsKey('budgetAlerts')) return oldResponse.future;
+      return respond({'budgetAlerts': false, 'recurringReminders': true, 'announcements': true});
+    });
+    await ekraniAc(tester);
+    await tester.tap(anahtar('budgetAlerts'));
+    await settle(tester);
+    await tester.tap(anahtar('announcements'));
+    await settle(tester);
+    expect(tile(tester, 'announcements').value, isTrue);
+    oldResponse.complete(respond({'budgetAlerts': false, 'recurringReminders': true, 'announcements': false}));
+    await settle(tester);
+    expect(tile(tester, 'budgetAlerts').value, isFalse);
+    expect(tile(tester, 'announcements').value, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
 }

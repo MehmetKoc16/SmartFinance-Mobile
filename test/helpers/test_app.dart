@@ -26,7 +26,11 @@ Future<void> setUpFakeApi({
   List<Map<String, dynamic>> deletedTransactions = const [],
   int restoreStatus = 200,
   int deletedStatus = 200,
-  Map<String, dynamic> transactionSummary = const {},
+  // Varsayılan yanıt gerçek, geçerli bir sıfır özetidir; hata senaryoları
+  // artık açıkça eksik/hatalı yanıt vererek sınanır.
+  Map<String, dynamic> transactionSummary = const {
+    'totalIncome': 0, 'totalExpense': 0, 'transactionCount': 0,
+  },
   Object categorySummary = const [],
   Map<String, Map<String, dynamic>> technicalAnalysisByRange = const {},
   Map<String, dynamic>? subscriptionStatus,

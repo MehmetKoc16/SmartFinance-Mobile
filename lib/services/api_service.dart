@@ -58,7 +58,7 @@ class ApiService{
     // login ekranına atar; aynı anda birden fazla isteğin aynı anda 401
     // dönmesi durumunda tekrar tekrar yönlendirmeyi engeller.
     static Future<void> _handleUnauthorized() async {
-        if (_isRedirectingToLogin) return;
+        if (_isRedirectingToLogin || PushService.isStopping) return;
         _isRedirectingToLogin = true;
         await removeToken();
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -99,7 +99,14 @@ class ApiService{
         }
     }
 
-    static Future<void> saveToken(String token) async {
+    static int _sessionEpoch = 0;
+    static const maxUploadBytes = 15 * 1024 * 1024;
+
+    static Future<void> saveToken(String token, {bool newSession = true}) async {
+        if (newSession) {
+            _sessionEpoch++;
+            _refreshInFlight = null;
+        }
         await _secureStorage.write(key: _tokenKey, value: token);
     }
 
@@ -118,7 +125,10 @@ class ApiService{
     }
 
     static Future<void> removeToken() async{
+        _sessionEpoch++;
+        _refreshInFlight = null;
         await BillingService().stopAppWide();
+        await PushService.stop();
         await _secureStorage.delete(key: _tokenKey);
         await _secureStorage.delete(key: _refreshTokenKey);
         // Taşıma hiç çalışmamış olabileceği ihtimaline karşı eski düz metin
@@ -189,13 +199,14 @@ class ApiService{
         final future = _performRefresh();
         _refreshInFlight = future;
         return future.whenComplete(() {
-            _refreshInFlight = null;
+            if (identical(_refreshInFlight, future)) _refreshInFlight = null;
         });
     }
 
     static Future<bool> _performRefresh() async {
+        final epoch = _sessionEpoch;
         final refreshToken = await getRefreshToken();
-        if (refreshToken == null) return false;
+        if (refreshToken == null || epoch != _sessionEpoch) return false;
         try {
             final response = await _client.post(
                 Uri.parse('$baseUrl/auth/refresh'),
@@ -204,7 +215,9 @@ class ApiService{
             ).timeout(_timeout);
             if (response.statusCode != 200) return false;
             final data = jsonDecode(response.body);
-            await saveToken(data['token']);
+            if (epoch != _sessionEpoch) return false;
+            await saveToken(data['token'], newSession: false);
+            if (epoch != _sessionEpoch) return false;
             await saveRefreshToken(data['refreshToken']);
             return true;
         } catch (e) {
@@ -219,26 +232,30 @@ class ApiService{
         Future<http.Response> Function(String token) send,
         {bool Function()? isCurrentSession}
     ) async {
+        final epoch = _sessionEpoch;
         void checkSession() {
-            if (isCurrentSession != null && !isCurrentSession()) {
+            if (epoch != _sessionEpoch ||
+                (isCurrentSession != null && !isCurrentSession())) {
                 throw StateError('Session ended');
             }
         }
         final token = await getToken();
         checkSession();
         final response = await send(token ?? '');
-        if (response.statusCode != 401) return response;
+        if (response.statusCode != 401 || epoch != _sessionEpoch || PushService.isStopping) return response;
 
         // Bu istek yoldayken başka bir istek token'ı yenilemiş olabilir.
         // Öyleyse yeniden yenilemeye (ve refresh token'ı bir kez daha
         // rotasyona sokmaya) gerek yok, yalnızca yeni token'la tekrar dene.
         final currentToken = await getToken();
+        if (epoch != _sessionEpoch) return response;
         checkSession();
         if (currentToken != null && currentToken != token) {
             return send(currentToken);
         }
 
         final refreshed = await _tryRefreshToken();
+        if (epoch != _sessionEpoch) return response;
         checkSession();
         if (!refreshed) {
             await _handleUnauthorized();
@@ -246,6 +263,7 @@ class ApiService{
         }
 
         final newToken = await getToken();
+        if (epoch != _sessionEpoch) return response;
         checkSession();
         return send(newToken ?? '');
     }
@@ -404,7 +422,7 @@ class ApiService{
                 response.statusCode >= 200 && response.statusCode < 300 && data is Map) {
                 // Login ile aynı alanlar ve aynı güvenli saklama yolu.
                 if (data['token'] is String && (data['token'] as String).isNotEmpty) {
-                    await saveToken(data['token'] as String);
+                    await saveToken(data['token'] as String, newSession: false);
                 }
                 if (data['refreshToken'] is String && (data['refreshToken'] as String).isNotEmpty) {
                     await saveRefreshToken(data['refreshToken'] as String);
@@ -438,7 +456,7 @@ class ApiService{
     static Future<dynamic> authenticatedUpload(String endpoint, String filePath) async {
         try {
             final file = File(filePath);
-            const maxBytes = 15 * 1024 * 1024;
+            const maxBytes = maxUploadBytes;
             if (await file.length() > maxBytes) {
                 return {'error': 'Dosya çok büyük (en fazla 15 MB).'};
             }

@@ -121,7 +121,9 @@ class MlKitStatementOcr implements StatementOcr {
 
     final okuyucu = TextRecognizer(script: TextRecognitionScript.latin);
     final kelimeler = <OcrWord>[];
+    Directory? geciciKlasor;
     try {
+      geciciKlasor = await Directory.systemTemp.createTemp('ekstre_ocr_');
       final toplam = belge.pagesCount;
       if (toplam > StatementOcr.maxPages) {
         throw const OcrException('Taranmış ekstre en fazla ${StatementOcr.maxPages} sayfa olabilir.');
@@ -140,7 +142,7 @@ class MlKitStatementOcr implements StatementOcr {
           );
           if (resim == null) continue;
 
-          gecici = File('${Directory.systemTemp.path}/ekstre_ocr_$no.png');
+          gecici = File('${geciciKlasor.path}/sayfa_$no.png');
           await gecici.writeAsBytes(resim.bytes, flush: true);
           final RecognizedText sonuc;
           try {
@@ -185,8 +187,15 @@ class MlKitStatementOcr implements StatementOcr {
         onProgress?.call(no, toplam);
       }
     } finally {
-      await okuyucu.close();
-      await belge.close();
+      try {
+        await okuyucu.close();
+      } finally {
+        try {
+          await belge.close();
+        } finally {
+          if (geciciKlasor != null) await geciciKlasor.delete(recursive: true);
+        }
+      }
     }
     return kelimeler;
   }

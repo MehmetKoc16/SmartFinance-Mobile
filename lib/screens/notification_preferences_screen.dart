@@ -104,11 +104,8 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
       }
       final server = _parse(result);
       if (server != null) {
-        // Sunucunun güncel değerleri esas alınır; isteği hâlâ süren diğer
-        // anahtarların iyimser değerine dokunulmaz.
-        for (final entry in server.entries) {
-          if (!_pending.contains(entry.key)) current[entry.key] = entry.value;
-        }
+        // Bu yanıt yalnız kendi değiştirdiği anahtar için günceldir.
+        current[key] = server[key]!;
       }
     });
     if (error != null) {

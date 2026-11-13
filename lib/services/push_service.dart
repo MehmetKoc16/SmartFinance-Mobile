@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../screens/notifications_screen.dart';
 import 'api_service.dart';
+import 'app_lock.dart';
 
 /// Gelen bildirimin uygulamanin kullandigi kismi.
 class PushPayload {
@@ -130,20 +131,29 @@ class PushService {
 
   /// Cikista, oturum token'lari silinmeden ONCE cagrilir: sunucudaki kayit
   /// kimlik dogrulamasi istiyor.
+  static bool _stopping = false;
+  static bool get isStopping => _stopping;
+
   static Future<void> stop() async {
-    _generation++;
-    if (!enabled) return;
-    await _durdurDinleyicileri();
-    final token = _token;
-    _token = null;
+    if (isStopping) return;
+    _stopping = true;
     try {
-      if (token != null) {
-        await ApiService.authenticatedPost('/devicetoken/unregister', {'token': token});
+      _generation++;
+      if (_token == null && _abonelikler.isEmpty) return;
+      await _durdurDinleyicileri();
+      final token = _token;
+      _token = null;
+      try {
+        if (token != null) {
+          await ApiService.authenticatedPost('/devicetoken/unregister', {'token': token});
+        }
+        // Ayni telefonda baska hesapla giriste yeni token uretilsin.
+        await messaging.deleteToken();
+      } catch (_) {
+        debugPrint('[Push] kayit silinemedi');
       }
-      // Ayni telefonda baska hesapla giriste yeni token uretilsin.
-      await messaging.deleteToken();
-    } catch (_) {
-      debugPrint('[Push] kayit silinemedi');
+    } finally {
+      _stopping = false;
     }
   }
 
@@ -168,14 +178,23 @@ class PushService {
     await ApiService.authenticatedPost('/devicetoken', {'token': token});
   }
 
-  static void _acildi(PushPayload p) {
+  static Future<void> _acildi(PushPayload p) async {
+    final generation = _generation;
     if (p.data['type'] != 'notification') return;
+    while (true) {
+      await AppLock.whenUnlocked();
+      if (!await ApiService.isLoggedIn() || generation != _generation) return;
+      // Token okunurken uygulama tekrar kilitlenmiş olabilir.
+      if (!AppLock.isLocked) break;
+    }
     ApiService.navigatorKey.currentState?.push(
       MaterialPageRoute(builder: (_) => const NotificationsScreen()),
     );
   }
 
-  static void _onPlandaGeldi(PushPayload p) {
+  static Future<void> _onPlandaGeldi(PushPayload p) async {
+    final generation = _generation;
+    if (!await ApiService.isLoggedIn() || generation != _generation) return;
     final metin = [p.title, p.body].whereType<String>().join('\n');
     if (metin.isEmpty) return;
     scaffoldMessengerKey.currentState?.showSnackBar(SnackBar(
