@@ -51,6 +51,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _summaryFailed = false;
   bool _hasSummary = false;
   int _dashboardRequest = 0;
+  Future<void>? _activeLoad;
+  int? _activeYear, _activeMonth;
+  bool _hasLoadedDashboard = false;
+  bool _errorVisible = false;
+  bool _recentFailed = false;
+  bool _hasRecentTransactions = false;
   double _totalIncome = 0;
   double _totalExpense = 0;
   double? _balanceChangePct;
@@ -139,13 +145,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     await _loadDashboardData(showLoading: false);
   }
 
-  Future<void> _loadDashboardData({bool showLoading = true}) async {
+  Future<void> _loadDashboardData({bool showLoading = true}) {
+    // Aynı ayın dinleyici isteği yenilemenin sonucunu/hatasını yutmamalı.
+    // Ay değişiminde yeni istek başlar; eski yanıtın kimlik denetimi kalır.
+    final active = _activeLoad;
+    if (active != null &&
+        _activeYear == _selectedYear && _activeMonth == _selectedMonth) {
+      return active;
+    }
+    _activeYear = _selectedYear;
+    _activeMonth = _selectedMonth;
+    final load = _fetchDashboardData(showLoading: showLoading);
+    _activeLoad = load;
+    return load.whenComplete(() {
+      if (identical(_activeLoad, load)) _activeLoad = null;
+    });
+  }
+
+  Future<void> _fetchDashboardData({required bool showLoading}) async {
     if (!mounted) return;
     final request = ++_dashboardRequest;
     final year = _selectedYear, month = _selectedMonth;
     bool current() => mounted && request == _dashboardRequest &&
         year == _selectedYear && month == _selectedMonth;
-    if (showLoading) setState(() => _isLoading = true);
+    // Yenilemede kartları söküp yeniden yaratmak onların verisini de siler.
+    if (showLoading && !_hasLoadedDashboard) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       final prevMonth = month == 1 ? 12 : month - 1;
@@ -170,7 +196,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       final prevSummary = results[3];
       final recent = results[4];
       final monthExpenses = results[5];
-      final unreadCount = results[6] is Map ? (results[6] as Map)['count'] ?? 0 : 0;
+      final unread = results[6];
+      final meOk = me is Map && !me.containsKey('error') && me['fullName'] is String;
+      final recentOk = recent is Map && !recent.containsKey('error') && recent['items'] is List;
+      final unreadOk = unread is Map && !unread.containsKey('error') && unread['count'] is int;
+      // Önceki ayın hatası yalnız karşılaştırmayı kaldırır (mevcut davranış).
+      final failed = !validSummary(summary) ||
+          [me, categories, recent, monthExpenses, unread]
+              .any((r) => r is Map && r.containsKey('error'));
 
       if (categories is List) {
         _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
@@ -204,22 +237,29 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() {
           _summaryFailed = !summaryOk;
           if (summaryOk) _hasSummary = true;
-          _userName = me is Map ? (me['fullName'] ?? '') : '';
+          if (meOk) _userName = me['fullName'] as String;
           _totalIncome = income;
           _totalExpense = expense;
           _balanceChangePct = changePct;
-          _recentTransactions = recent is Map && recent['items'] is List ? recent['items'] : [];
-          _topSpendCats = topSpendCats;
-          _unreadNotifications = unreadCount is int ? unreadCount : 0;
+          _recentFailed = !recentOk;
+          if (recentOk) {
+            _recentTransactions = recent['items'] as List;
+            _hasRecentTransactions = true;
+          }
+          if (monthExpenses is List) _topSpendCats = topSpendCats;
+          if (unreadOk) _unreadNotifications = unread['count'] as int;
+          _hasLoadedDashboard = true;
           _isLoading = false;
         });
-        if (!summaryOk) _showSummaryError();
+        if (failed) _showSummaryError();
       }
     } catch (e) {
       if (current()) {
         setState(() {
           _isLoading = false;
           _summaryFailed = true;
+          _recentFailed = true;
+          _hasLoadedDashboard = true;
           _balanceChangePct = null;
         });
         _showSummaryError();
@@ -228,9 +268,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _showSummaryError() {
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (_errorVisible) return;
+    _errorVisible = true;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       const SnackBar(content: Text('Veriler yüklenemedi. Tekrar deneyin.')),
-    );
+    ).closed.then((_) => _errorVisible = false);
   }
 
   String _getCategoryName(dynamic transaction) {
@@ -603,7 +647,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                           child: Center(
                             child: Text(
-                              'Henüz işlem yok\n+ butonuyla ilk işleminizi ekleyin',
+                              _recentFailed && !_hasRecentTransactions
+                                  ? 'İşlemler yüklenemedi'
+                                  : 'Henüz işlem yok\n+ butonuyla ilk işleminizi ekleyin',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: t.textSec, fontSize: 14),
                             ),
