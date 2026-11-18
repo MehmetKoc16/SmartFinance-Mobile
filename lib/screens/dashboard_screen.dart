@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../widgets/accounts_overview.dart';
 import '../widgets/upcoming_payments_card.dart';
@@ -53,6 +55,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _dashboardRequest = 0;
   Future<void>? _activeLoad;
   int? _activeYear, _activeMonth;
+  // Ay bazlı önbelleğin hangi yıl/aya ait olduğunu tutar; hata durumunda
+  // önceki değer yalnızca bu ay seçiliyse korunur.
+  int? _dataYear, _dataMonth;
+  Timer? _monthDebounce;
   bool _reloadPending = false;
   bool _hasLoadedDashboard = false;
   bool _errorVisible = false;
@@ -86,11 +92,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _monthDebounce?.cancel();
     TransactionTrash.changes.removeListener(_loadDashboardData);
     super.dispose();
   }
 
   void _changeMonth(int direction) {
+    // Başlık hemen güncellenir; hızlı ay değişiminde 429 hız sınırını aşmamak
+    // için istek 350 ms gecikmeli olarak yalnız son seçilen ay için atılır.
     setState(() {
       _selectedMonth += direction;
       if (_selectedMonth > 12) {
@@ -101,7 +110,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         _selectedYear--;
       }
     });
-    _loadDashboardData();
+    _monthDebounce?.cancel();
+    _monthDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _loadDashboardData(includeStatic: false);
+    });
   }
 
   // Sadece < > okuyla ay degistirmek, orn. 14 ay geriye gitmek icin 14 kez
@@ -121,8 +133,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       _selectedYear = picked.year;
       _selectedMonth = picked.month;
     });
-    _loadDashboardData();
+    _monthDebounce?.cancel();
+    _loadDashboardData(includeStatic: false);
   }
+
+  bool get _isDataForSelectedMonth =>
+      _dataYear == _selectedYear && _dataMonth == _selectedMonth;
 
   bool get _isCurrentMonth {
     final now = DateTime.now();
@@ -146,7 +162,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     await _loadDashboardData(showLoading: false);
   }
 
-  Future<void> _loadDashboardData({bool showLoading = true}) async {
+  Future<void> _loadDashboardData({
+    bool showLoading = true,
+    bool includeStatic = true,
+  }) async {
+    _monthDebounce?.cancel();
     // Aynı ayın dinleyici isteği yenilemenin sonucunu/hatasını yutmamalı;
     // ancak yükleme sürerken veri değişmiş olabileceği için tek bir bekleyen
     // yeniden yükleme işaretlenir ve çağıran en güncel veri gelene kadar bekler.
@@ -162,12 +182,20 @@ class _DashboardScreenState extends State<DashboardScreen>
       _activeYear = year;
       _activeMonth = month;
       late final Future<void> load;
-      load = _fetchDashboardData(showLoading: showLoading).whenComplete(() {
+      load = _fetchDashboardData(
+        showLoading: showLoading,
+        includeStatic: includeStatic,
+      ).whenComplete(() {
         if (identical(_activeLoad, load)) {
           _activeLoad = null;
           if (_reloadPending) {
             _reloadPending = false;
-            if (mounted) _loadDashboardData(showLoading: false);
+            if (mounted) {
+              _loadDashboardData(
+                showLoading: false,
+                includeStatic: includeStatic,
+              );
+            }
           }
         }
       });
@@ -188,7 +216,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<void> _fetchDashboardData({required bool showLoading}) async {
+  Future<void> _fetchDashboardData({
+    required bool showLoading,
+    bool includeStatic = true,
+  }) async {
     if (!mounted) return;
     final request = ++_dashboardRequest;
     final year = _selectedYear, month = _selectedMonth;
@@ -203,41 +234,60 @@ class _DashboardScreenState extends State<DashboardScreen>
       final prevMonth = month == 1 ? 12 : month - 1;
       final prevYear = month == 1 ? year - 1 : year;
 
+      // Aydan bağımsız uçlar (/auth/me, /category, /notification/unread-count)
+      // yalnızca ilk yükleme, yenileme ve dinleyicilerde çağrılır; ay
+      // değişiminde tekrar istenmez.
       final results = await Future.wait([
-        ApiService.authenticatedGet('/auth/me'),
-        ApiService.authenticatedGet('/category'),
         ApiService.authenticatedGet('/transaction/summary/$year/$month'),
         ApiService.authenticatedGet('/transaction/summary/$prevYear/$prevMonth'),
         ApiService.authenticatedGet('/transaction/filter?page=1&pageSize=5'),
         ApiService.authenticatedGet(
           '/transaction/category-summary/$year/$month?type=2',
         ),
-        ApiService.authenticatedGet('/notification/unread-count'),
+        if (includeStatic) ...[
+          ApiService.authenticatedGet('/auth/me'),
+          ApiService.authenticatedGet('/category'),
+          ApiService.authenticatedGet('/notification/unread-count'),
+        ],
       ]);
 
       if (!current()) return;
-      final me = results[0];
-      final categories = results[1];
-      final summary = results[2];
-      final prevSummary = results[3];
-      final recent = results[4];
-      final monthExpenses = results[5];
-      final unread = results[6];
-      final meOk = me is Map && !me.containsKey('error') && me['fullName'] is String;
-      final recentOk = recent is Map && !recent.containsKey('error') && recent['items'] is List;
-      final unreadOk = unread is Map && !unread.containsKey('error') && unread['count'] is int;
+      final summary = results[0];
+      final prevSummary = results[1];
+      final recent = results[2];
+      final monthExpenses = results[3];
+      final me = includeStatic ? results[4] : null;
+      final categories = includeStatic ? results[5] : null;
+      final unread = includeStatic ? results[6] : null;
+      final meOk = includeStatic &&
+          me is Map && !me.containsKey('error') && me['fullName'] is String;
+      final recentOk =
+          recent is Map && !recent.containsKey('error') && recent['items'] is List;
+      final unreadOk = includeStatic &&
+          unread is Map && !unread.containsKey('error') && unread['count'] is int;
       // Önceki ayın hatası yalnız karşılaştırmayı kaldırır (mevcut davranış).
       final failed = !validSummary(summary) ||
-          [me, categories, recent, monthExpenses, unread]
-              .any((r) => r is Map && r.containsKey('error'));
+          [
+            if (includeStatic) ...[me, categories, unread],
+            recent,
+            monthExpenses,
+          ].any((r) => r is Map && r.containsKey('error'));
 
       if (categories is List) {
         _categoryMap = {for (var c in categories) c['id'] as int: c['name'] as String};
       }
 
+      // Koruma kuralı yalnızca önbellekteki veri şu an yüklenen yıl/aya
+      // aitse uygulanır; farklı bir aya geçildiğinde eski ayın rakamları
+      // yeni başlık altında tutulmaz.
+      final sameMonth = _dataYear == year && _dataMonth == month;
       final summaryOk = validSummary(summary);
-      final income = summaryOk ? (summary['totalIncome'] as num).toDouble() : _totalIncome;
-      final expense = summaryOk ? (summary['totalExpense'] as num).toDouble() : _totalExpense;
+      final income = summaryOk
+          ? (summary['totalIncome'] as num).toDouble()
+          : (sameMonth ? _totalIncome : 0.0);
+      final expense = summaryOk
+          ? (summary['totalExpense'] as num).toDouble()
+          : (sameMonth ? _totalExpense : 0.0);
       final net = income - expense;
 
       final prevOk = validSummary(prevSummary);
@@ -261,8 +311,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       if (current()) {
         setState(() {
+          _dataYear = year;
+          _dataMonth = month;
           _summaryFailed = !summaryOk;
-          if (summaryOk) _hasSummary = true;
+          if (summaryOk) {
+            _hasSummary = true;
+          } else if (!sameMonth) {
+            _hasSummary = false;
+          }
           if (meOk) _userName = me['fullName'] as String;
           _totalIncome = income;
           _totalExpense = expense;
@@ -271,8 +327,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           if (recentOk) {
             _recentTransactions = recent['items'] as List;
             _hasRecentTransactions = true;
+          } else if (!sameMonth) {
+            _recentTransactions = [];
+            _hasRecentTransactions = false;
           }
-          if (monthExpenses is List) _topSpendCats = topSpendCats;
+          if (monthExpenses is List) {
+            _topSpendCats = topSpendCats;
+            if (!sameMonth) _tumKategoriler = false;
+          } else if (!sameMonth) {
+            _topSpendCats = [];
+            _tumKategoriler = false;
+          }
           if (unreadOk) _unreadNotifications = unread['count'] as int;
           _hasLoadedDashboard = true;
           _isLoading = false;
@@ -281,12 +346,24 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     } catch (e) {
       if (current()) {
+        final sameMonth = _dataYear == year && _dataMonth == month;
         setState(() {
           _isLoading = false;
           _summaryFailed = true;
           _recentFailed = true;
           _hasLoadedDashboard = true;
           _balanceChangePct = null;
+          if (!sameMonth) {
+            _dataYear = year;
+            _dataMonth = month;
+            _hasSummary = false;
+            _totalIncome = 0;
+            _totalExpense = 0;
+            _topSpendCats = [];
+            _tumKategoriler = false;
+            _recentTransactions = [];
+            _hasRecentTransactions = false;
+          }
         });
         _showSummaryError();
       }
@@ -497,11 +574,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
                             const SizedBox(height: 8),
                             Text(
-                              _summaryFailed && !_hasSummary ? '—' : formatTRY(_totalIncome - _totalExpense),
+                              !_isDataForSelectedMonth || (_summaryFailed && !_hasSummary)
+                                  ? '—'
+                                  : formatTRY(_totalIncome - _totalExpense),
                               style: jakarta(
                                   fontSize: 34, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: -0.5),
                             ),
-                            if (_balanceChangePct != null) ...[
+                            if (_isDataForSelectedMonth && _balanceChangePct != null) ...[
                               const SizedBox(height: 10),
                               Container(
                                 padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
@@ -543,7 +622,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                               t.green,
                               t.greenSoft,
                               LucideIcons.arrowDownLeft,
-                              (_totalIncome + _totalExpense) == 0 ? 0 : _totalIncome / (_totalIncome + _totalExpense),
+                              !_isDataForSelectedMonth ||
+                                      (_summaryFailed && !_hasSummary) ||
+                                      (_totalIncome + _totalExpense) == 0
+                                  ? 0
+                                  : _totalIncome / (_totalIncome + _totalExpense),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -555,7 +638,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                               t.red,
                               t.redSoft,
                               LucideIcons.arrowUpRight,
-                              (_totalIncome + _totalExpense) == 0 ? 0 : _totalExpense / (_totalIncome + _totalExpense),
+                              !_isDataForSelectedMonth ||
+                                      (_summaryFailed && !_hasSummary) ||
+                                      (_totalIncome + _totalExpense) == 0
+                                  ? 0
+                                  : _totalExpense / (_totalIncome + _totalExpense),
                             ),
                           ),
                         ],
@@ -563,7 +650,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                       const AccountsOverview(),
                       const UpcomingPaymentsCard(),
-                      if (_topSpendCats.isNotEmpty) ...[
+                      if (_isDataForSelectedMonth && _topSpendCats.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -663,7 +750,23 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                       const SizedBox(height: 10),
 
-                      if (_recentTransactions.isEmpty)
+                      if (!_isDataForSelectedMonth)
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: t.card,
+                            border: Border.all(color: t.border),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: t.brand),
+                            ),
+                          ),
+                        )
+                      else if (_recentTransactions.isEmpty)
                         Container(
                           padding: const EdgeInsets.all(32),
                           decoration: BoxDecoration(
@@ -752,7 +855,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(height: 10),
           Text(
-            _summaryFailed && !_hasSummary ? '—' : formatTRY(amount),
+            !_isDataForSelectedMonth || (_summaryFailed && !_hasSummary)
+                ? '—'
+                : formatTRY(amount),
             style: TextStyle(color: t.text, fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),

@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:smartfinance_mobile/core/utils/formatters.dart';
 import 'package:smartfinance_mobile/screens/dashboard_screen.dart';
 import 'package:smartfinance_mobile/services/account_service.dart';
@@ -221,6 +223,177 @@ void main() {
 
     expect(ozetSayisi, 2);
     expect(find.text(formatTRY(250)), findsWidgets);
+    await kapat(tester);
+  });
+
+  testWidgets('AyDegisinceOzetHatasi_OncekiAyinRakamiGosterilmez',
+      (tester) async {
+    // NEDEN: 429 veya sunucu hatasında önceki ayın rakamları yeni ayın
+    // başlığı altında gösterilmemeli; yanlış para bilgisi riskini önler.
+    final now = DateTime.now();
+    final oncekiAy = DateTime(now.year, now.month - 1);
+    final buAyYolu = '/transaction/summary/${now.year}/${now.month}';
+    final oncekiAyYolu =
+        '/transaction/summary/${oncekiAy.year}/${oncekiAy.month}';
+    final oncekiAyBaslik = DateFormat('MMMM yyyy', 'tr_TR').format(oncekiAy);
+
+    await setUpFakeApi(
+      accountApi: (r) async {
+        if (r.url.path.endsWith(buAyYolu)) {
+          return yanit(
+              {'totalIncome': 1200, 'totalExpense': 500, 'transactionCount': 2});
+        }
+        if (r.url.path.endsWith(oncekiAyYolu)) {
+          return hata();
+        }
+        return null;
+      },
+    );
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    expect(find.text(formatTRY(500)), findsOneWidget);
+
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+
+    expect(find.text(oncekiAyBaslik), findsOneWidget);
+    expect(find.text(formatTRY(500)), findsNothing);
+    expect(find.text('—'), findsNWidgets(3));
+    expect(find.text(hataMetni), findsOneWidget);
+    await kapat(tester);
+  });
+
+  testWidgets('AynıAyYenilemeHatasi_RakamlarKorunur', (tester) async {
+    // NEDEN: Aynı ay yenilenirken geçici sunucu hatası olursa kullanıcının
+    // zaten gördüğü o aya ait rakamlar korunmalı.
+    var hataVar = false;
+    final now = DateTime.now();
+    final buAyYolu = '/transaction/summary/${now.year}/${now.month}';
+
+    await setUpFakeApi(
+      accountApi: (r) async {
+        if (hataVar) return hata();
+        if (r.url.path.endsWith(buAyYolu)) {
+          return yanit(
+              {'totalIncome': 1200, 'totalExpense': 500, 'transactionCount': 2});
+        }
+        return null;
+      },
+    );
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    expect(find.text(formatTRY(500)), findsOneWidget);
+
+    hataVar = true;
+    await pumpUntilDone(
+      tester,
+      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh(),
+    );
+    await settle(tester);
+
+    expect(find.text(formatTRY(500)), findsOneWidget);
+    expect(find.text('—'), findsNothing);
+    expect(find.text(hataMetni), findsOneWidget);
+    await kapat(tester);
+  });
+
+  testWidgets('HizliAyDegisimi_YalnizSonAyYuklenir', (tester) async {
+    // NEDEN: Hızlı ay okuna basıldığında her ara ay için istek atmak sunucu
+    // hız sınırını (429) tetikler; debounce yalnız son seçilen ayı yüklemeli.
+    final now = DateTime.now();
+    final sonAy = DateTime(now.year, now.month - 5);
+
+    await setUpFakeApi();
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    fakeApiRequests.clear();
+    for (var i = 0; i < 5; i++) {
+      await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(
+      fakeApiRequests.where((u) => u.path.contains('/transaction/summary/')),
+      isEmpty,
+    );
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+
+    final ozetIstekleri = fakeApiRequests
+        .where((u) => u.path.contains('/transaction/summary/'))
+        .toList();
+    expect(
+      ozetIstekleri.where(
+        (u) =>
+            u.path.endsWith('/transaction/summary/${sonAy.year}/${sonAy.month}'),
+      ),
+      hasLength(1),
+    );
+    expect(ozetIstekleri, hasLength(2));
+    await kapat(tester);
+  });
+
+  testWidgets('AyDegisimi_StatikUclariCagirmaz', (tester) async {
+    // NEDEN: Profil, kategoriler ve bildirim sayısı aya bağlı değildir;
+    // ay değişiminde tekrar çağrılmamalı, yalnız yenilemede güncellenmelidir.
+    await setUpFakeApi();
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    final meIlk = fakeApiRequests.where((u) => u.path.endsWith('/auth/me')).length;
+    final catIlk =
+        fakeApiRequests.where((u) => u.path.endsWith('/category')).length;
+    final unreadIlk = fakeApiRequests
+        .where((u) => u.path.endsWith('/notification/unread-count'))
+        .length;
+    expect(meIlk, 1);
+    expect(catIlk, 1);
+    expect(unreadIlk, 1);
+
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+
+    expect(
+      fakeApiRequests.where((u) => u.path.endsWith('/auth/me')).length,
+      meIlk,
+    );
+    expect(
+      fakeApiRequests.where((u) => u.path.endsWith('/category')).length,
+      catIlk,
+    );
+    expect(
+      fakeApiRequests
+          .where((u) => u.path.endsWith('/notification/unread-count'))
+          .length,
+      unreadIlk,
+    );
+
+    await pumpUntilDone(
+      tester,
+      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh(),
+    );
+    await settle(tester);
+
+    expect(
+      fakeApiRequests.where((u) => u.path.endsWith('/auth/me')).length,
+      meIlk + 1,
+    );
+    expect(
+      fakeApiRequests.where((u) => u.path.endsWith('/category')).length,
+      catIlk + 1,
+    );
+    expect(
+      fakeApiRequests
+          .where((u) => u.path.endsWith('/notification/unread-count'))
+          .length,
+      unreadIlk + 1,
+    );
     await kapat(tester);
   });
 }
