@@ -53,6 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _dashboardRequest = 0;
   Future<void>? _activeLoad;
   int? _activeYear, _activeMonth;
+  bool _reloadPending = false;
   bool _hasLoadedDashboard = false;
   bool _errorVisible = false;
   bool _recentFailed = false;
@@ -145,21 +146,46 @@ class _DashboardScreenState extends State<DashboardScreen>
     await _loadDashboardData(showLoading: false);
   }
 
-  Future<void> _loadDashboardData({bool showLoading = true}) {
-    // Aynı ayın dinleyici isteği yenilemenin sonucunu/hatasını yutmamalı.
-    // Ay değişiminde yeni istek başlar; eski yanıtın kimlik denetimi kalır.
+  Future<void> _loadDashboardData({bool showLoading = true}) async {
+    // Aynı ayın dinleyici isteği yenilemenin sonucunu/hatasını yutmamalı;
+    // ancak yükleme sürerken veri değişmiş olabileceği için tek bir bekleyen
+    // yeniden yükleme işaretlenir ve çağıran en güncel veri gelene kadar bekler.
+    // Ay değişiminde yeni istek hemen başlar; eski yanıtın kimlik denetimi kalır.
+    final year = _selectedYear, month = _selectedMonth;
+    Future<void> current;
     final active = _activeLoad;
-    if (active != null &&
-        _activeYear == _selectedYear && _activeMonth == _selectedMonth) {
-      return active;
+    if (active != null && _activeYear == year && _activeMonth == month) {
+      _reloadPending = true;
+      current = active;
+    } else {
+      _reloadPending = false;
+      _activeYear = year;
+      _activeMonth = month;
+      late final Future<void> load;
+      load = _fetchDashboardData(showLoading: showLoading).whenComplete(() {
+        if (identical(_activeLoad, load)) {
+          _activeLoad = null;
+          if (_reloadPending) {
+            _reloadPending = false;
+            if (mounted) _loadDashboardData(showLoading: false);
+          }
+        }
+      });
+      _activeLoad = load;
+      current = load;
     }
-    _activeYear = _selectedYear;
-    _activeMonth = _selectedMonth;
-    final load = _fetchDashboardData(showLoading: showLoading);
-    _activeLoad = load;
-    return load.whenComplete(() {
-      if (identical(_activeLoad, load)) _activeLoad = null;
-    });
+
+    while (true) {
+      await current;
+      final next = _activeLoad;
+      if (next == null ||
+          identical(next, current) ||
+          _activeYear != year ||
+          _activeMonth != month) {
+        break;
+      }
+      current = next;
+    }
   }
 
   Future<void> _fetchDashboardData({required bool showLoading}) async {

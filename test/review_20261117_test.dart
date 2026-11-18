@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:smartfinance_mobile/core/utils/formatters.dart';
 import 'package:smartfinance_mobile/screens/dashboard_screen.dart';
 import 'package:smartfinance_mobile/services/account_service.dart';
 import 'package:smartfinance_mobile/services/amount_privacy.dart';
@@ -135,6 +136,91 @@ void main() {
     await settle(tester);
     expect(find.text(hataMetni), findsOneWidget);
     expect(find.text('İşlemler yüklenemedi'), findsOneWidget);
+    await kapat(tester);
+  });
+
+  testWidgets('YuklemeSurerkenDegisiklik_YeniVeriGosterilir', (tester) async {
+    // NEDEN: Yükleme sürerken kullanıcı işlem ekler/silerse bekleyen istek
+    // eski yanıtla yetinmemeli; tamamlanınca tek yeni yüklemeyle güncel tutarı getirmeli.
+    final now = DateTime.now();
+    final buAyYolu = '/transaction/summary/${now.year}/${now.month}';
+    final ilkOzet = Completer<http.Response>();
+    var beklet = false;
+    var ozetSayisi = 0;
+
+    await setUpFakeApi(accountApi: (r) async {
+      if (!beklet || !r.url.path.endsWith(buAyYolu)) return null;
+      ozetSayisi++;
+      if (ozetSayisi == 1) return ilkOzet.future;
+      return yanit({'totalIncome': 250, 'totalExpense': 0, 'transactionCount': 1});
+    });
+
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    beklet = true;
+    final yenileme = tester
+        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .onRefresh();
+    await settle(tester, frames: 2);
+    expect(ozetSayisi, 1);
+
+    TransactionTrash.changes.value++;
+    await settle(tester, frames: 2);
+    expect(ozetSayisi, 1);
+
+    ilkOzet.complete(
+      yanit({'totalIncome': 100, 'totalExpense': 0, 'transactionCount': 1}),
+    );
+    await pumpUntilDone(tester, yenileme);
+    await settle(tester);
+
+    expect(ozetSayisi, 2);
+    expect(find.text(formatTRY(250)), findsWidgets);
+    expect(find.text(formatTRY(100)), findsNothing);
+    await kapat(tester);
+  });
+
+  testWidgets('YuklemeSurerkenUcDegisiklik_TekEkYukleme', (tester) async {
+    // NEDEN: Yükleme sürerken art arda gelen birden fazla değişiklik bildirimi
+    // N ayrı yükleme ya da döngü yerine tek bir birleşik ek yüklemeye düşmeli.
+    final now = DateTime.now();
+    final buAyYolu = '/transaction/summary/${now.year}/${now.month}';
+    final ilkOzet = Completer<http.Response>();
+    var beklet = false;
+    var ozetSayisi = 0;
+
+    await setUpFakeApi(accountApi: (r) async {
+      if (!beklet || !r.url.path.endsWith(buAyYolu)) return null;
+      ozetSayisi++;
+      if (ozetSayisi == 1) return ilkOzet.future;
+      return yanit({'totalIncome': 250, 'totalExpense': 0, 'transactionCount': 1});
+    });
+
+    await tester.pumpWidget(testApp(const DashboardScreen()));
+    await settle(tester);
+
+    beklet = true;
+    final yenileme = tester
+        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .onRefresh();
+    await settle(tester, frames: 2);
+    expect(ozetSayisi, 1);
+
+    for (var i = 0; i < 3; i++) {
+      TransactionTrash.changes.value++;
+      await settle(tester, frames: 1);
+    }
+    expect(ozetSayisi, 1);
+
+    ilkOzet.complete(
+      yanit({'totalIncome': 100, 'totalExpense': 0, 'transactionCount': 1}),
+    );
+    await pumpUntilDone(tester, yenileme);
+    await settle(tester);
+
+    expect(ozetSayisi, 2);
+    expect(find.text(formatTRY(250)), findsWidgets);
     await kapat(tester);
   });
 }
